@@ -34,6 +34,9 @@ export interface RunOptions {
   logger?: ILogger;
   maxAgentTurns?: number;
 
+  /** Conversation ID for server-side conversation grouping. */
+  conversationId?: string;
+
   /** Abort signal for cancelling an in-progress run. */
   signal?: AbortSignal;
 }
@@ -81,6 +84,7 @@ export async function run(
       functionTools: options.functionTools,
       capabilities: caps,
       approvalStore: options.approvalStore,
+      conversationId: options.conversationId,
       logger,
       signal: options.signal,
       onLifecycleEvent: options.hooks?.onTurnStart

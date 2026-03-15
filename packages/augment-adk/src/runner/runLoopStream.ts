@@ -66,7 +66,7 @@ export async function runLoopStream(
   const ctx = new RunContext({
     userQuery: userInput,
     previousResponseId: undefined,
-    conversationId: undefined,
+    conversationId: options.conversationId,
   });
 
   let currentAgent = getAgent(agents, defaultAgentKey);
@@ -141,7 +141,10 @@ export async function runLoopStream(
           accumulator.processEvent(rawEvent);
           push({ type: 'raw_model_event', data: rawEvent });
         },
-        { previousResponseId: ctx.previousResponseId },
+        {
+          previousResponseId: ctx.previousResponseId,
+          conversationId: ctx.conversationId,
+        },
         options.signal,
       );
     } catch (error) {

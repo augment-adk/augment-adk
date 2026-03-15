@@ -58,6 +58,8 @@ export interface RunnerOptions {
   capabilities: CapabilityInfo;
   outputClassifier?: OutputClassifierInterface;
   approvalStore?: ApprovalStore;
+  /** Conversation ID for server-side conversation grouping. */
+  conversationId?: string;
   logger: ILogger;
   onLifecycleEvent?: (event: AgentLifecycleEvent) => void;
   inputFilter?: (
@@ -91,7 +93,7 @@ export async function runLoop(
   const ctx = new RunContext({
     userQuery: userInput,
     previousResponseId: undefined,
-    conversationId: undefined,
+    conversationId: options.conversationId,
   });
 
   let currentAgent = getAgent(agents, defaultAgentKey);
@@ -166,7 +168,10 @@ export async function runLoop(
         composedInstructions,
         tools,
         agentConfig,
-        { previousResponseId: ctx.previousResponseId },
+        {
+          previousResponseId: ctx.previousResponseId,
+          conversationId: ctx.conversationId,
+        },
       );
     } catch (error) {
       logger.error(`Turn ${turn} failed for agent "${currentAgent.key}": ${toErrorMessage(error)}`);

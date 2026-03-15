@@ -80,6 +80,7 @@ export function runStream(
         functionTools: options.functionTools,
         capabilities: caps,
         approvalStore: options.approvalStore,
+        conversationId: options.conversationId,
         logger,
         inputFilter: options.hooks?.inputFilter,
         toolErrorFormatter: options.hooks?.toolErrorFormatter,
