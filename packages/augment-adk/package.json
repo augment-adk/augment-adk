@@ -12,6 +12,10 @@
       "require": "./dist/index.js"
     }
   },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "files": [
     "dist",
     "README.md",
@@ -24,7 +28,8 @@
     "test:watch": "vitest",
     "lint": "eslint src/ --ext .ts",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build && npm run typecheck"
   },
   "engines": {
     "node": ">=18"
