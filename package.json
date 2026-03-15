@@ -1,0 +1,17 @@
+{
+  "name": "augment-adk-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Augment ADK — Agent Development Kit for LlamaStack",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "clean": "pnpm -r clean"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

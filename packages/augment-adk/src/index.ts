@@ -1,0 +1,159 @@
+// =============================================================================
+// Public API — @augment-adk/augment-adk
+// =============================================================================
+
+// Entry point
+export { run, type RunOptions } from './run';
+export { runStream, type RunStreamOptions } from './runStream';
+
+// Agent
+export { Agent } from './agent';
+export {
+  resolveAgentGraph,
+  type ResolvedAgent,
+  type AgentGraphSnapshot,
+} from './agentGraph';
+
+// Handoff
+export {
+  buildHandoffTool,
+  buildAgentAsToolTool,
+  applyHandoffInputFilter,
+  nestHandoffHistory,
+  parseHandoffReason,
+  type HandoffTarget,
+} from './handoff';
+
+// Hooks
+export { type AgentHooks, type RunHooks, dispatchToHooks } from './hooks';
+
+// Model
+export { type Model, type ModelProvider, type ModelTurnOptions } from './model/model';
+export {
+  LlamaStackModel,
+  type LlamaStackModelOptions,
+} from './model/llamastack/LlamaStackModel';
+export {
+  ResponsesApiClient,
+  type ResponsesApiClientConfig,
+} from './model/llamastack/ResponsesApiClient';
+export { ResponsesApiError } from './model/llamastack/errors';
+export { defaultCapabilities, mergeCapabilities } from './model/llamastack/serverCapabilities';
+
+// Tools
+export { tool, toApiTool, type FunctionTool, type ToolDefinition } from './tools/tool';
+export {
+  sanitizeName,
+  prefixName,
+  unprefixName,
+  slimSchema,
+} from './tools/toolNameUtils';
+export { ToolResolver, type ResolvedToolInfo } from './tools/toolResolver';
+export { MCPToolManager, type MCPConnection, type MCPConnectionFactory } from './tools/mcpTool';
+export { executeToolCalls, type ToolCallRequest, type ToolCallResult } from './tools/toolExecution';
+export { type ToolScopeProvider, type ToolDescriptor, type ToolScopeResult } from './tools/toolScopeProvider';
+
+// Runner
+export { RunContext } from './runner/RunContext';
+export type { RunResult } from './runner/RunResult';
+export { StreamedRunResult } from './runner/StreamedRunResult';
+export type { RunState } from './runner/RunState';
+export { createInitialState, createInterruptedState } from './runner/RunState';
+export {
+  DefaultOutputClassifier,
+  type OutputClassifierInterface,
+} from './runner/outputClassifier';
+export {
+  processResponse,
+  extractTextFromResponse,
+  type RAGSource,
+  type ReasoningSummary,
+  type ApprovalInfo,
+} from './runner/responseProcessor';
+export { runLoop, type RunnerOptions } from './runner/runLoop';
+
+// Stream
+export type { NormalizedStreamEvent } from './stream/events';
+export type { RunStreamEvent } from './stream/runStreamEvents';
+export { LS_EVENT, IMMEDIATE_FORWARD_TYPES } from './stream/constants';
+export { normalizeLlamaStackEvent } from './stream/normalizer';
+export { sanitizeMcpError } from './stream/errorSanitizer';
+
+// Tracing
+export {
+  type Span,
+  type SpanData,
+  type SpanKind,
+  type Trace,
+  type TracingProcessor,
+  type SpanExporter,
+  TraceProvider,
+  DefaultSpan,
+  NoopSpan,
+  DefaultTrace,
+  NoopTrace,
+  BatchTraceProcessor,
+  ConsoleSpanExporter,
+} from './tracing';
+
+// Session
+export { type Session, InMemorySession, ServerManagedSession } from './session';
+
+// Approval
+export { ApprovalStore, type PendingApproval } from './approval/ApprovalStore';
+export { partitionByApproval } from './approval/partitionByApproval';
+
+// Guardrails
+export { checkInputGuardrail, evaluateInputGuardrail } from './guardrails/inputGuardrail';
+export { checkOutputGuardrail, evaluateOutputGuardrail } from './guardrails/outputGuardrail';
+
+// Errors
+export {
+  AdkError,
+  MaxTurnsError,
+  AgentNotFoundError,
+  GraphValidationError,
+  GuardrailError,
+  ToolNotFoundError,
+  CycleDetectedError,
+  toErrorMessage,
+} from './errors';
+
+// Logger
+export { type ILogger, consoleLogger, noopLogger } from './logger';
+
+// Types
+export type {
+  AgentConfig,
+  FunctionDefinition,
+  HandoffInputFilter,
+  ToolUseBehavior,
+  OutputSchema,
+  ToolGuardrailRule,
+  ToolChoiceConfig,
+  ReasoningConfig,
+  PromptRef,
+  AllowedToolSpec,
+} from './types/agentConfig';
+export type {
+  EffectiveConfig,
+  MCPServerConfig,
+  ToolScopingConfig,
+  CapabilityInfo,
+} from './types/modelConfig';
+export type {
+  ResponsesApiResponse,
+  ResponsesApiOutputEvent,
+  ResponsesApiInputItem,
+  ResponsesApiTool,
+  ResponsesApiFunctionTool,
+  ResponsesApiMcpTool,
+  ResponsesApiMessage,
+  ResponsesApiFunctionCall,
+  FunctionCallOutputItem,
+  ResponseUsage,
+} from './types/responsesApi';
+export type {
+  AgentLifecycleEvent,
+  LifecycleEventCallback,
+} from './types/lifecycle';
