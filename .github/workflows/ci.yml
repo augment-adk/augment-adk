@@ -40,3 +40,55 @@ jobs:
       - name: Test
         run: npm test
         working-directory: packages/augment-adk
+
+  publish:
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: packages/augment-adk
+
+      - name: Build
+        run: npm run build
+        working-directory: packages/augment-adk
+
+      - name: Bump version and publish
+        working-directory: packages/augment-adk
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+
+          if npm view "${PACKAGE_NAME}@${CURRENT_VERSION}" version 2>/dev/null; then
+            echo "Version ${CURRENT_VERSION} already published, bumping patch..."
+            npm version patch --no-git-tag-version
+            NEW_VERSION=$(node -p "require('./package.json').version")
+            echo "Bumped to ${NEW_VERSION}"
+          else
+            NEW_VERSION="${CURRENT_VERSION}"
+            echo "Publishing version ${CURRENT_VERSION}"
+          fi
+
+          npm publish --provenance --access public
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git diff --staged --quiet || git commit -m "chore: release v${NEW_VERSION} [skip ci]"
+          git tag "v${NEW_VERSION}"
+          git push origin main --tags
