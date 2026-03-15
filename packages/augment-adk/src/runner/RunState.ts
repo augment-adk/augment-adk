@@ -1,5 +1,4 @@
-import type { ResponsesApiResponse, ResponsesApiInputItem } from '../types/responsesApi';
-import type { ResolvedAgent } from '../agentGraph';
+import type { ResponsesApiInputItem } from '../types/responsesApi';
 
 /**
  * Serializable run state that enables resumption after HITL interruption.

@@ -1,5 +1,4 @@
 import type { ResponsesApiResponse, ResponsesApiInputItem } from '../types/responsesApi';
-import type { ResolvedAgent } from '../agentGraph';
 
 /**
  * Classification of a model's output that determines the next orchestration step.

@@ -2,29 +2,18 @@ import type { ILogger } from '../logger';
 import type { Model } from '../model/model';
 import type { ResolvedAgent } from '../agentGraph';
 import type { EffectiveConfig, MCPServerConfig, CapabilityInfo } from '../types/modelConfig';
-import type {
-  ResponsesApiInputItem,
-  ResponsesApiResponse,
-  ResponsesApiTool,
-  ResponsesApiFunctionTool,
-  FunctionCallOutputItem,
-} from '../types/responsesApi';
+import type { ResponsesApiTool } from '../types/responsesApi';
 import type { RunContext } from './RunContext';
 import type { OutputClassifierInterface } from './outputClassifier';
 import type { ToolResolver } from '../tools/toolResolver';
 import type { MCPToolManager } from '../tools/mcpTool';
 import type { ToolScopeProvider } from '../tools/toolScopeProvider';
 import type { FunctionTool } from '../tools/tool';
-import type { OutputClassification, ToolCallInfo } from './steps';
 import {
   buildAgentEffectiveConfig,
-  buildToolAvailabilityContext,
   applyScopeFilter,
   sanitizeToolsForServer,
 } from './turnPreparation';
-import { executeToolCalls, type ToolCallResult } from '../tools/toolExecution';
-import { extractTextFromResponse, extractServerToolCallId } from './responseProcessor';
-import { toErrorMessage } from '../errors';
 import type { AgentLifecycleEvent } from '../types/lifecycle';
 
 /**

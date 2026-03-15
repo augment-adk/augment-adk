@@ -1,4 +1,4 @@
-import type { AgentLifecycleEvent, LifecycleEventCallback } from './types/lifecycle';
+import type { AgentLifecycleEvent } from './types/lifecycle';
 import type { ResponsesApiInputItem } from './types/responsesApi';
 
 /**

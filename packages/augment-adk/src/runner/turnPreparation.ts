@@ -8,7 +8,9 @@ import type {
 } from '../types/responsesApi';
 import type { ToolScopeProvider, ToolDescriptor } from '../tools/toolScopeProvider';
 
-const INSTRUCTION_LENGTH_WARNING = 10_000;
+const DEFAULT_ACTIVATION_THRESHOLD = 10;
+const DEFAULT_MAX_TOOLS_PER_TURN = 6;
+const DEFAULT_MIN_SCORE = 0.1;
 
 /**
  * Build an agent-specific EffectiveConfig by merging per-agent overrides.
@@ -102,7 +104,7 @@ export function applyScopeFilter(
     !scopingConfig?.enabled ||
     !scopeProvider ||
     !userQuery ||
-    allTools.length < (scopingConfig.activationThreshold ?? 10)
+    allTools.length < (scopingConfig.activationThreshold ?? DEFAULT_ACTIVATION_THRESHOLD)
   ) {
     return allTools;
   }
@@ -114,9 +116,9 @@ export function applyScopeFilter(
   scopeProvider.updateIndex(descriptors);
   const result = scopeProvider.filterTools(
     userQuery,
-    scopingConfig.maxToolsPerTurn ?? 6,
+    scopingConfig.maxToolsPerTurn ?? DEFAULT_MAX_TOOLS_PER_TURN,
     undefined,
-    scopingConfig.minScore ?? 0.1,
+    scopingConfig.minScore ?? DEFAULT_MIN_SCORE,
   );
 
   const allowedNames = new Set<string>();

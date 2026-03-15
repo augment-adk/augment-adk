@@ -5,6 +5,8 @@ import { sanitizeName } from './tools/toolNameUtils';
 import { GraphValidationError } from './errors';
 import { buildHandoffTool, buildAgentAsToolTool } from './handoff';
 
+const DEFAULT_MAX_TURNS = 10;
+
 /**
  * A fully resolved agent with pre-built handoff and agent-as-tool functions.
  */
@@ -40,11 +42,12 @@ export function resolveAgentGraph(
   logger: ILogger,
 ): AgentGraphSnapshot {
   const agents = buildAgentMap(configs, logger);
-  validateAgentGraph(agents, defaultAgent, maxAgentTurns ?? 10, logger);
+  const maxTurns = maxAgentTurns ?? DEFAULT_MAX_TURNS;
+  validateAgentGraph(agents, defaultAgent, maxTurns, logger);
   return {
     agents,
     defaultAgentKey: defaultAgent,
-    maxTurns: maxAgentTurns ?? 10,
+    maxTurns,
   };
 }
 

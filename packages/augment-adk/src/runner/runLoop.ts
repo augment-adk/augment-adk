@@ -5,7 +5,6 @@ import type { EffectiveConfig, MCPServerConfig, CapabilityInfo } from '../types/
 import type {
   ResponsesApiInputItem,
   ResponsesApiResponse,
-  ResponsesApiTool,
   FunctionCallOutputItem,
 } from '../types/responsesApi';
 import { RunContext } from './RunContext';
@@ -18,7 +17,6 @@ import type { ToolScopeProvider } from '../tools/toolScopeProvider';
 import type { FunctionTool } from '../tools/tool';
 import type { ApprovalStore } from '../approval/ApprovalStore';
 import type { AgentLifecycleEvent } from '../types/lifecycle';
-import { ResponsesApiError } from '../model/llamastack/errors';
 import {
   processResponse,
   extractTextFromResponse,
@@ -28,7 +26,6 @@ import { buildAgentTools, type TurnDeps } from './turnExecution';
 import {
   buildAgentEffectiveConfig,
   buildToolAvailabilityContext,
-  reduceToolsForContextBudget,
 } from './turnPreparation';
 import {
   shouldStopAtToolNames,
@@ -45,7 +42,6 @@ import {
 import {
   MaxTurnsError,
   AgentNotFoundError,
-  CycleDetectedError,
   toErrorMessage,
 } from '../errors';
 
@@ -173,6 +169,8 @@ export async function runLoop(
         { previousResponseId: ctx.previousResponseId },
       );
     } catch (error) {
+      logger.error(`Turn ${turn} failed for agent "${currentAgent.key}": ${toErrorMessage(error)}`);
+
       emit(options, {
         type: 'agent.end',
         agentKey: currentAgent.key,
@@ -363,7 +361,9 @@ export async function runLoop(
           try {
             const parsed = JSON.parse(subInput);
             if (typeof parsed.input === 'string') subInput = parsed.input;
-          } catch { /* use raw */ }
+          } catch {
+            // Arguments are not valid JSON; pass raw string as sub-agent input
+          }
 
           const subResponse = await deps.model.chatTurn(
             subInput,

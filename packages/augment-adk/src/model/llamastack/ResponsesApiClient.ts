@@ -8,6 +8,8 @@ const API_REQUEST_TIMEOUT_MS = 120_000;
 const STREAM_REQUEST_TIMEOUT_MS = 300_000;
 const MAX_API_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 500;
+const MAX_RETRY_DELAY_MS = 4_000;
+const DEFAULT_MAX_SOCKETS = 10;
 
 export interface ResponsesApiClientConfig {
   baseUrl: string;
@@ -37,10 +39,10 @@ export class ResponsesApiClient {
     this.agent = isHttps
       ? new https.Agent({
           keepAlive: true,
-          maxSockets: 10,
+          maxSockets: DEFAULT_MAX_SOCKETS,
           rejectUnauthorized: !config.skipTlsVerify,
         })
-      : new http.Agent({ keepAlive: true, maxSockets: 10 });
+      : new http.Agent({ keepAlive: true, maxSockets: DEFAULT_MAX_SOCKETS });
   }
 
   getConfig(): ResponsesApiClientConfig {
@@ -120,9 +122,9 @@ export class ResponsesApiClient {
       try {
         return await this.request<T>(endpoint, options);
       } catch (error) {
-        lastError = error as Error;
+        lastError = error instanceof Error ? error : new Error(String(error));
         if (!this.isRetryable(error) || attempt === maxRetries) throw lastError;
-        const delay = Math.min(RETRY_BASE_DELAY_MS * 2 ** attempt, 4000);
+        const delay = Math.min(RETRY_BASE_DELAY_MS * 2 ** attempt, MAX_RETRY_DELAY_MS);
         this.logger?.info(`Retrying ${endpoint} after ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
         await new Promise(r => setTimeout(r, delay));
       }

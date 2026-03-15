@@ -43,9 +43,15 @@ export interface Model {
   testConnection(): Promise<{ connected: boolean; error?: string }>;
 }
 
+/**
+ * Options passed to individual model turns for conversation continuity.
+ */
 export interface ModelTurnOptions {
+  /** Response ID from the previous turn, enabling multi-turn conversations. */
   previousResponseId?: string;
+  /** Conversation ID for grouping related turns on the server side. */
   conversationId?: string;
+  /** Whether the server should persist this turn's response. */
   store?: boolean;
 }
 

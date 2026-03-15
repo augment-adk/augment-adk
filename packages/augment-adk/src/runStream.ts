@@ -95,6 +95,8 @@ export function runStream(
     }
   };
 
-  run();
+  run().catch(() => {
+    // Error is already forwarded via streamed.closeWithError; prevent unhandled-rejection warnings
+  });
   return streamed;
 }

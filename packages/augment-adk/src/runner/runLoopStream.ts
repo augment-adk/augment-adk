@@ -1,4 +1,3 @@
-import type { ILogger } from '../logger';
 import type { ResolvedAgent, AgentGraphSnapshot } from '../agentGraph';
 import type {
   ResponsesApiInputItem,
@@ -146,6 +145,8 @@ export async function runLoopStream(
         options.signal,
       );
     } catch (error) {
+      logger.error(`Turn ${turn} failed for agent "${currentAgent.key}": ${toErrorMessage(error)}`);
+
       push({
         type: 'agent_end',
         agentKey: currentAgent.key,
@@ -369,7 +370,9 @@ export async function runLoopStream(
           try {
             const parsed = JSON.parse(subInput);
             if (typeof parsed.input === 'string') subInput = parsed.input;
-          } catch { /* use raw */ }
+          } catch {
+            // Arguments are not valid JSON; pass raw string as sub-agent input
+          }
 
           const subResponse = await options.model.chatTurn(
             subInput,
