@@ -96,10 +96,12 @@ export function buildTurnRequest(
     }
   }
 
-  if (options?.conversationId && !options?.previousResponseId) {
+  // conversation and previous_response_id are mutually exclusive in
+  // Llama Stack.  Prefer conversation so every turn is stored in the
+  // conversation container and retrievable via GET /conversations/{id}/items.
+  if (options?.conversationId) {
     request.conversation = options.conversationId;
-  }
-  if (options?.previousResponseId) {
+  } else if (options?.previousResponseId) {
     request.previous_response_id = options.previousResponseId;
   }
 
