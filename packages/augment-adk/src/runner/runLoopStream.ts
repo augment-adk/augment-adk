@@ -1,40 +1,31 @@
 import type { ILogger } from '../logger';
-import type { Model } from '../model/model';
 import type { ResolvedAgent, AgentGraphSnapshot } from '../agentGraph';
-import type { EffectiveConfig, MCPServerConfig, CapabilityInfo } from '../types/modelConfig';
 import type {
   ResponsesApiInputItem,
   ResponsesApiResponse,
-  ResponsesApiTool,
   FunctionCallOutputItem,
 } from '../types/responsesApi';
 import { RunContext } from './RunContext';
 import type { RunResult } from './RunResult';
-import type { OutputClassifierInterface } from './outputClassifier';
 import { DefaultOutputClassifier } from './outputClassifier';
-import type { ToolResolver } from '../tools/toolResolver';
-import type { MCPToolManager } from '../tools/mcpTool';
-import type { ToolScopeProvider } from '../tools/toolScopeProvider';
-import type { FunctionTool } from '../tools/tool';
-import type { ApprovalStore } from '../approval/ApprovalStore';
-import type { AgentLifecycleEvent } from '../types/lifecycle';
-import { ResponsesApiError } from '../model/llamastack/errors';
-import {
-  processResponse,
-  extractTextFromResponse,
-  extractServerToolCallId,
-} from './responseProcessor';
-import { buildAgentTools, type TurnDeps } from './turnExecution';
+import type { RunnerOptions } from './runLoop';
+import type { RunStreamEvent } from '../stream/runStreamEvents';
+import { StreamAccumulator } from '../stream/streamAccumulator';
+import { buildAgentTools } from './turnExecution';
 import {
   buildAgentEffectiveConfig,
   buildToolAvailabilityContext,
-  reduceToolsForContextBudget,
 } from './turnPreparation';
 import {
   shouldStopAtToolNames,
   validateOutput,
   mergeAccumulatedToolCalls,
 } from './turnResolution';
+import {
+  processResponse,
+  extractTextFromResponse,
+  extractServerToolCallId,
+} from './responseProcessor';
 import { executeToolCalls } from '../tools/toolExecution';
 import { partitionByApproval } from '../approval/partitionByApproval';
 import {
@@ -45,52 +36,33 @@ import {
 import {
   MaxTurnsError,
   AgentNotFoundError,
-  CycleDetectedError,
   toErrorMessage,
 } from '../errors';
 
 const MAX_AGENT_VISITS = 4;
 
-export interface RunnerOptions {
-  model: Model;
-  config: EffectiveConfig;
-  mcpServers: MCPServerConfig[];
-  toolResolver: ToolResolver;
-  mcpToolManager?: MCPToolManager;
-  toolScopeProvider?: ToolScopeProvider;
-  functionTools?: FunctionTool[];
-  capabilities: CapabilityInfo;
-  outputClassifier?: OutputClassifierInterface;
-  approvalStore?: ApprovalStore;
-  logger: ILogger;
-  onLifecycleEvent?: (event: AgentLifecycleEvent) => void;
-  inputFilter?: (
-    input: string | ResponsesApiInputItem[],
-    agentKey: string,
-    turn: number,
-  ) => string | ResponsesApiInputItem[];
-  toolErrorFormatter?: (toolName: string, error: string) => string;
-  onMaxTurnsExceeded?: (ctx: {
-    agentPath: string[];
-    lastResponse?: ResponsesApiResponse;
-  }) => RunResult | undefined;
-
-  /** Abort signal for cancelling the run. */
-  signal?: AbortSignal;
+export interface StreamRunnerOptions extends RunnerOptions {
+  onStreamEvent: (event: RunStreamEvent) => void;
 }
 
 /**
- * Execute a non-streaming multi-agent run loop.
+ * Streaming multi-agent run loop.
+ *
+ * Mirrors `runLoop` but uses `model.chatTurnStream()` per turn,
+ * forwarding raw SSE events in real time and accumulating the
+ * response for classification between turns.
  */
-export async function runLoop(
+export async function runLoopStream(
   userInput: string,
   snapshot: AgentGraphSnapshot,
-  options: RunnerOptions,
+  options: StreamRunnerOptions,
 ): Promise<RunResult> {
   const { agents, defaultAgentKey, maxTurns } = snapshot;
   const logger = options.logger;
+  const push = options.onStreamEvent;
   const classifier =
     options.outputClassifier ?? new DefaultOutputClassifier(logger);
+  const accumulator = new StreamAccumulator();
 
   const ctx = new RunContext({
     userQuery: userInput,
@@ -115,21 +87,6 @@ export async function runLoop(
     }
   }
 
-  const deps: TurnDeps = {
-    model: options.model,
-    config: options.config,
-    mcpServers: options.mcpServers,
-    toolResolver: options.toolResolver,
-    mcpToolManager: options.mcpToolManager,
-    toolScopeProvider: options.toolScopeProvider,
-    functionTools: options.functionTools,
-    capabilities: options.capabilities,
-    outputClassifier: classifier,
-    logger,
-    onLifecycleEvent: options.onLifecycleEvent,
-    toolErrorFormatter: options.toolErrorFormatter,
-  };
-
   for (let turn = 0; turn < maxTurns; turn++) {
     if (options.signal?.aborted) {
       return {
@@ -141,44 +98,59 @@ export async function runLoop(
     }
 
     ctx.agentPath.push(currentAgent.key);
-
     if (options.inputFilter) {
       input = options.inputFilter(input, currentAgent.key, turn);
     }
 
-    emit(options, {
-      type: 'agent.start',
+    push({
+      type: 'agent_start',
       agentKey: currentAgent.key,
       agentName: currentAgent.config.name,
       turn,
     });
 
     const agentConfig = buildAgentEffectiveConfig(
-      deps.config,
+      options.config,
       currentAgent.config,
       ctx.hasUsedTools(currentAgent.key),
     );
-    const tools = await buildAgentTools(currentAgent, deps, ctx);
+    const tools = await buildAgentTools(currentAgent, {
+      model: options.model,
+      config: options.config,
+      mcpServers: options.mcpServers,
+      toolResolver: options.toolResolver,
+      mcpToolManager: options.mcpToolManager,
+      toolScopeProvider: options.toolScopeProvider,
+      functionTools: options.functionTools,
+      capabilities: options.capabilities,
+      outputClassifier: classifier,
+      logger,
+    }, ctx);
 
     const toolCtx = buildToolAvailabilityContext(currentAgent.config, tools);
     const composedInstructions = agentConfig.systemPrompt + toolCtx;
 
-    let response: ResponsesApiResponse;
+    accumulator.reset();
+
     try {
-      response = await deps.model.chatTurn(
+      await options.model.chatTurnStream(
         input,
         composedInstructions,
         tools,
         agentConfig,
+        (rawEvent: string) => {
+          accumulator.processEvent(rawEvent);
+          push({ type: 'raw_model_event', data: rawEvent });
+        },
         { previousResponseId: ctx.previousResponseId },
+        options.signal,
       );
     } catch (error) {
-      emit(options, {
-        type: 'agent.end',
+      push({
+        type: 'agent_end',
         agentKey: currentAgent.key,
         agentName: currentAgent.config.name,
         turn,
-        result: 'error',
       });
 
       if (lastResponse) {
@@ -191,6 +163,7 @@ export async function runLoop(
       throw error;
     }
 
+    const response = accumulator.getResponse();
     ctx.previousResponseId = response.id;
     lastResponse = response;
 
@@ -209,7 +182,7 @@ export async function runLoop(
         const { approved, needsApproval } = partitionByApproval(
           classification.calls,
           options.toolResolver,
-          deps.mcpServers,
+          options.mcpServers,
         );
 
         if (needsApproval.length > 0 && options.approvalStore) {
@@ -238,7 +211,26 @@ export async function runLoop(
             serverLabel: info?.serverId,
             arguments: needsApproval[0].arguments,
           };
+
+          push({
+            type: 'approval_requested',
+            toolName: result.pendingApproval.toolName,
+            arguments: result.pendingApproval.arguments ?? '',
+            serverLabel: result.pendingApproval.serverLabel ?? '',
+            approvalRequestId: result.pendingApproval.approvalRequestId,
+          });
           return mergeAccumulatedToolCalls(result, ctx.accumulatedToolCalls);
+        }
+
+        for (const call of approved) {
+          const info = options.toolResolver.getServerInfo(call.name);
+          push({
+            type: 'tool_called',
+            toolName: info?.originalName ?? call.name,
+            arguments: call.arguments,
+            agentKey: currentAgent.key,
+            callId: call.callId,
+          });
         }
 
         const results = await executeToolCalls(
@@ -265,15 +257,22 @@ export async function runLoop(
             output: r.output,
             error: r.error,
           });
+
+          push({
+            type: 'tool_output',
+            toolName: r.name,
+            output: r.output,
+            agentKey: currentAgent.key,
+            callId: r.callId,
+          });
         }
 
         if (shouldStopAtToolNames(currentAgent.config, approved)) {
-          emit(options, {
-            type: 'agent.end',
+          push({
+            type: 'agent_end',
             agentKey: currentAgent.key,
             agentName: currentAgent.config.name,
             turn,
-            result: 'final_output',
           });
           return mergeAccumulatedToolCalls(
             {
@@ -297,19 +296,16 @@ export async function runLoop(
         const target = getAgent(agents, classification.targetKey);
         const reason = parseHandoffReason(classification.metadata);
 
-        emit(options, {
-          type: 'agent.end',
+        push({
+          type: 'agent_end',
           agentKey: currentAgent.key,
           agentName: currentAgent.config.name,
           turn,
-          result: 'handoff',
         });
-        emit(options, {
-          type: 'agent.handoff',
+        push({
+          type: 'handoff_occurred',
           fromAgent: currentAgent.config.name,
           toAgent: target.config.name,
-          fromKey: currentAgent.key,
-          toKey: target.key,
           reason,
         });
 
@@ -355,17 +351,27 @@ export async function runLoop(
 
         let subText: string;
         try {
-          const subConfig = buildAgentEffectiveConfig(deps.config, subAgent.config);
-          const subTools = await buildAgentTools(subAgent, deps, ctx, {
-            excludeAgentAsToolTools: true,
-          });
+          const subConfig = buildAgentEffectiveConfig(options.config, subAgent.config);
+          const subTools = await buildAgentTools(subAgent, {
+            model: options.model,
+            config: options.config,
+            mcpServers: options.mcpServers,
+            toolResolver: options.toolResolver,
+            mcpToolManager: options.mcpToolManager,
+            toolScopeProvider: options.toolScopeProvider,
+            functionTools: options.functionTools,
+            capabilities: options.capabilities,
+            outputClassifier: classifier,
+            logger,
+          }, ctx, { excludeAgentAsToolTools: true });
+
           let subInput = classification.arguments || '';
           try {
             const parsed = JSON.parse(subInput);
             if (typeof parsed.input === 'string') subInput = parsed.input;
           } catch { /* use raw */ }
 
-          const subResponse = await deps.model.chatTurn(
+          const subResponse = await options.model.chatTurn(
             subInput,
             subConfig.systemPrompt,
             subTools,
@@ -383,12 +389,11 @@ export async function runLoop(
             { name: `call_${subAgent.functionName}` },
           ])
         ) {
-          emit(options, {
-            type: 'agent.end',
+          push({
+            type: 'agent_end',
             agentKey: currentAgent.key,
             agentName: currentAgent.config.name,
             turn,
-            result: 'final_output',
           });
           return mergeAccumulatedToolCalls(
             {
@@ -411,12 +416,11 @@ export async function runLoop(
       }
 
       case 'final_output': {
-        emit(options, {
-          type: 'agent.end',
+        push({
+          type: 'agent_end',
           agentKey: currentAgent.key,
           agentName: currentAgent.config.name,
           turn,
-          result: 'final_output',
         });
         const result = processResponse(response);
         result.agentName = currentAgent.config.name;
@@ -481,12 +485,4 @@ function getAgent(
     throw new AgentNotFoundError(key, [...agents.keys()]);
   }
   return agent;
-}
-
-function emit(
-  options: RunnerOptions,
-  event: AgentLifecycleEvent,
-): void {
-  options.onLifecycleEvent?.(event);
-  options.logger.info(`lifecycle: ${JSON.stringify(event)}`);
 }

@@ -3,7 +3,7 @@ import type { RunResult } from './runner/RunResult';
 import { StreamedRunResult } from './runner/StreamedRunResult';
 import { consoleLogger } from './logger';
 import { resolveAgentGraph } from './agentGraph';
-import { runLoop } from './runner/runLoop';
+import { runLoopStream } from './runner/runLoopStream';
 import { defaultCapabilities } from './model/llamastack/serverCapabilities';
 
 /**
@@ -36,10 +36,10 @@ export interface RunStreamOptions extends RunOptions {
  * console.log(stream.result.content);
  * ```
  *
- * Note: The current implementation wraps the non-streaming
- * `runLoop` and emits the final text as a single `text_done`
- * event. Full per-token streaming will be wired when
- * `runLoop` gains a streaming path using `chatTurnStream`.
+ * Uses `chatTurnStream` for real per-token streaming. Each raw
+ * SSE event from the model is emitted as a `raw_model_event`,
+ * while orchestration events (tool execution, handoffs) are
+ * emitted as typed `RunStreamEvent` objects.
  */
 export function runStream(
   userInput: string,
@@ -70,7 +70,7 @@ export function runStream(
     let result: RunResult;
 
     try {
-      result = await runLoop(userInput, snapshot, {
+      result = await runLoopStream(userInput, snapshot, {
         model: options.model,
         config: options.config,
         mcpServers: options.mcpServers ?? [],
@@ -81,52 +81,11 @@ export function runStream(
         capabilities: caps,
         approvalStore: options.approvalStore,
         logger,
-        onLifecycleEvent: event => {
-          if (event.type === 'agent.start') {
-            streamed.push({
-              type: 'agent_start',
-              agentKey: event.agentKey,
-              agentName: event.agentName,
-              turn: event.turn,
-            });
-            options.hooks?.onTurnStart?.(event.turn, event.agentKey);
-          } else if (event.type === 'agent.end') {
-            streamed.push({
-              type: 'agent_end',
-              agentKey: event.agentKey,
-              agentName: event.agentName,
-              turn: event.turn,
-            });
-          } else if (event.type === 'agent.handoff') {
-            streamed.push({
-              type: 'handoff_occurred',
-              fromAgent: event.fromKey,
-              toAgent: event.toKey,
-              reason: event.reason,
-            });
-          }
-        },
         inputFilter: options.hooks?.inputFilter,
         toolErrorFormatter: options.hooks?.toolErrorFormatter,
+        signal: options.signal,
+        onStreamEvent: event => streamed.push(event),
       });
-
-      if (result.content) {
-        streamed.push({
-          type: 'text_done',
-          text: result.content,
-          agentKey: result.agentName ?? 'unknown',
-        });
-      }
-
-      if (result.pendingApproval) {
-        streamed.push({
-          type: 'approval_requested',
-          toolName: result.pendingApproval.toolName,
-          arguments: result.pendingApproval.arguments ?? '',
-          serverLabel: result.pendingApproval.serverLabel ?? '',
-          approvalRequestId: result.pendingApproval.approvalRequestId ?? '',
-        });
-      }
 
       await options.hooks?.onRunEnd?.('success');
       streamed.close(result);

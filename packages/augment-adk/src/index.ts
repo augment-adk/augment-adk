@@ -71,6 +71,7 @@ export {
   type ApprovalInfo,
 } from './runner/responseProcessor';
 export { runLoop, type RunnerOptions } from './runner/runLoop';
+export { runLoopStream, type StreamRunnerOptions } from './runner/runLoopStream';
 
 // Stream
 export type { NormalizedStreamEvent } from './stream/events';
@@ -78,6 +79,7 @@ export type { RunStreamEvent } from './stream/runStreamEvents';
 export { LS_EVENT, IMMEDIATE_FORWARD_TYPES } from './stream/constants';
 export { normalizeLlamaStackEvent } from './stream/normalizer';
 export { sanitizeMcpError } from './stream/errorSanitizer';
+export { StreamAccumulator } from './stream/streamAccumulator';
 
 // Tracing
 export {
