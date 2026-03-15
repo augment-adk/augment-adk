@@ -96,7 +96,7 @@ export function buildTurnRequest(
     }
   }
 
-  if (options?.conversationId) {
+  if (options?.conversationId && !options?.previousResponseId) {
     request.conversation = options.conversationId;
   }
   if (options?.previousResponseId) {
