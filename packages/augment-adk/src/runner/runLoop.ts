@@ -73,6 +73,11 @@ export interface RunnerOptions {
     lastResponse?: ResponsesApiResponse;
   }) => RunResult | undefined;
 
+  /** Called when a model call fails. Return a string to use as fallback content, or undefined to re-throw. */
+  onModelError?: (error: Error, agentKey: string, turn: number) => string | undefined;
+  /** Called when a tool execution fails. Return a string to use as the tool output, or undefined for default handling. */
+  onToolError?: (error: Error, toolName: string, agentKey: string) => string | undefined;
+
   /** Abort signal for cancelling the run. */
   signal?: AbortSignal;
 }
@@ -413,6 +418,19 @@ export async function runLoop(
           },
         ];
         continue;
+      }
+
+      case 'mcp_approval_request': {
+        const result = processResponse(response);
+        result.agentName = currentAgent.config.name;
+        if (ctx.agentPath.length > 1) result.handoffPath = [...ctx.agentPath];
+        result.pendingApproval = {
+          approvalRequestId: classification.approvalRequestId,
+          toolName: classification.method,
+          serverLabel: classification.serverLabel,
+          arguments: classification.params ? JSON.stringify(classification.params) : undefined,
+        };
+        return mergeAccumulatedToolCalls(result, ctx.accumulatedToolCalls);
       }
 
       case 'final_output': {

@@ -58,7 +58,7 @@ export class InMemorySession implements Session {
 
 /**
  * Server-managed session that relies on LlamaStack's
- * conversationId for history. Only stores the conversation ID.
+ * conversationId for history.
  */
 export class ServerManagedSession implements Session {
   private readonly sessionId: string;
@@ -86,6 +86,6 @@ export class ServerManagedSession implements Session {
   }
 
   async clearSession(): Promise<void> {
-    // Server-managed; nothing to clear locally
+    // Server manages lifecycle
   }
 }

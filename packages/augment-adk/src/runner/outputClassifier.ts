@@ -5,6 +5,7 @@ import type { OutputClassification } from './steps';
 import type {
   ResponsesApiFunctionCall,
   ResponsesApiOutputEvent,
+  ResponsesApiMcpApprovalRequest,
 } from '../types/responsesApi';
 
 /**
@@ -21,7 +22,7 @@ export interface OutputClassifierInterface {
 
 /**
  * Default classification logic.
- * Priority: handoff > agent_tool > backend_tool > final_output > continue
+ * Priority: mcp_approval_request > handoff > agent_tool > backend_tool > final_output > continue
  */
 export class DefaultOutputClassifier implements OutputClassifierInterface {
   private readonly logger: ILogger;
@@ -36,6 +37,19 @@ export class DefaultOutputClassifier implements OutputClassifierInterface {
     agents: ReadonlyMap<string, ResolvedAgent>,
     toolResolver?: ToolResolver,
   ): OutputClassification {
+    const mcpApprovalRequest = output.find(
+      (item): item is ResponsesApiMcpApprovalRequest => item.type === 'mcp_approval_request',
+    );
+    if (mcpApprovalRequest) {
+      return {
+        type: 'mcp_approval_request',
+        approvalRequestId: mcpApprovalRequest.id,
+        serverLabel: mcpApprovalRequest.server_label,
+        method: mcpApprovalRequest.method,
+        params: mcpApprovalRequest.params,
+      };
+    }
+
     const functionCalls = output.filter(
       (item): item is ResponsesApiFunctionCall => item.type === 'function_call',
     );

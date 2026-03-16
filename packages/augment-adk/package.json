@@ -1,6 +1,6 @@
 {
   "name": "@augment-adk/augment-adk",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "A standalone Agent Development Kit for LlamaStack Responses API multi-agent orchestration",
   "license": "Apache-2.0",
   "main": "dist/index.js",
@@ -49,6 +49,14 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/augment-adk/augment-adk.git"
+  },
+  "peerDependencies": {
+    "zod": "^3.0.0",
+    "zod-to-json-schema": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "zod": { "optional": true },
+    "zod-to-json-schema": { "optional": true }
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

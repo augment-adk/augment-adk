@@ -23,6 +23,27 @@ export interface RunState {
   }>;
   lastInput?: string | ResponsesApiInputItem[];
   isInterrupted: boolean;
+  /** Pending MCP approval requests from the server. */
+  pendingMcpApprovals?: Array<{
+    approvalRequestId: string;
+    serverLabel: string;
+    method: string;
+    params?: Record<string, unknown>;
+  }>;
+}
+
+/**
+ * Serialize a RunState to a JSON string for persistence.
+ */
+export function serializeRunState(state: RunState): string {
+  return JSON.stringify(state);
+}
+
+/**
+ * Deserialize a RunState from a JSON string.
+ */
+export function deserializeRunState(json: string): RunState {
+  return JSON.parse(json) as RunState;
 }
 
 /**

@@ -7,6 +7,7 @@ export type OutputClassification =
   | { type: 'handoff'; targetKey: string; callId: string; metadata?: string }
   | { type: 'agent_tool'; targetKey: string; callId: string; arguments: string }
   | { type: 'backend_tool'; calls: Array<{ callId: string; name: string; arguments: string }> }
+  | { type: 'mcp_approval_request'; approvalRequestId: string; serverLabel: string; method: string; params?: Record<string, unknown> }
   | { type: 'final_output' }
   | { type: 'continue' };
 

@@ -421,6 +421,26 @@ export async function runLoopStream(
         continue;
       }
 
+      case 'mcp_approval_request': {
+        const result = processResponse(response);
+        result.agentName = currentAgent.config.name;
+        if (ctx.agentPath.length > 1) result.handoffPath = [...ctx.agentPath];
+        result.pendingApproval = {
+          approvalRequestId: classification.approvalRequestId,
+          toolName: classification.method,
+          serverLabel: classification.serverLabel,
+          arguments: classification.params ? JSON.stringify(classification.params) : undefined,
+        };
+        push({
+          type: 'approval_requested',
+          toolName: classification.method,
+          arguments: classification.params ? JSON.stringify(classification.params) : '',
+          serverLabel: classification.serverLabel,
+          approvalRequestId: classification.approvalRequestId,
+        });
+        return mergeAccumulatedToolCalls(result, ctx.accumulatedToolCalls);
+      }
+
       case 'final_output': {
         push({
           type: 'agent_end',

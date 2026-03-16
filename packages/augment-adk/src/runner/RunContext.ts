@@ -1,4 +1,11 @@
 import type { ToolCallInfo } from './steps';
+import type { FunctionCallOutputItem, McpApprovalResponseItem } from '../types/responsesApi';
+
+export interface ToolApprovalDecision {
+  callId: string;
+  approved: boolean;
+  reason?: string;
+}
 
 /**
  * Mutable context passed through the run loop.
@@ -11,6 +18,7 @@ export class RunContext {
   readonly accumulatedToolCalls: ToolCallInfo[] = [];
   readonly agentVisitCounts = new Map<string, number>();
   readonly agentToolUsed = new Set<string>();
+  readonly toolApprovalDecisions: ToolApprovalDecision[] = [];
   previousResponseId?: string;
   userQuery: string;
   conversationId?: string;
@@ -40,5 +48,45 @@ export class RunContext {
 
   hasUsedTools(agentKey: string): boolean {
     return this.agentToolUsed.has(agentKey);
+  }
+
+  /**
+   * Approve a pending tool call. Records the decision for later retrieval.
+   */
+  approveTool(callId: string, reason?: string): void {
+    this.toolApprovalDecisions.push({ callId, approved: true, reason });
+  }
+
+  /**
+   * Reject a pending tool call. Records the decision for later retrieval.
+   */
+  rejectTool(callId: string, reason?: string): void {
+    this.toolApprovalDecisions.push({ callId, approved: false, reason });
+  }
+
+  /**
+   * Build function_call_output items from approval decisions
+   * for sending back to the model.
+   */
+  buildApprovalOutputItems(): FunctionCallOutputItem[] {
+    return this.toolApprovalDecisions
+      .filter(d => d.approved)
+      .map(d => ({
+        type: 'function_call_output' as const,
+        call_id: d.callId,
+        output: d.reason ?? 'Approved by human.',
+      }));
+  }
+
+  /**
+   * Build MCP approval response items from approval decisions.
+   */
+  buildMcpApprovalResponses(): McpApprovalResponseItem[] {
+    return this.toolApprovalDecisions.map(d => ({
+      type: 'mcp_approval_response' as const,
+      approval_request_id: d.callId,
+      approve: d.approved,
+      reason: d.reason,
+    }));
   }
 }

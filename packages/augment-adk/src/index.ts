@@ -7,7 +7,7 @@ export { run, type RunOptions } from './run';
 export { runStream, type RunStreamOptions } from './runStream';
 
 // Agent
-export { Agent } from './agent';
+export { Agent, type DynamicInstructions } from './agent';
 export {
   resolveAgentGraph,
   type ResolvedAgent,
@@ -39,6 +39,14 @@ export {
 } from './model/llamastack/ResponsesApiClient';
 export { ResponsesApiError } from './model/llamastack/errors';
 export { defaultCapabilities, mergeCapabilities } from './model/llamastack/serverCapabilities';
+export {
+  ChatCompletionsModel,
+  type ChatCompletionsModelOptions,
+} from './model/chatCompletions/ChatCompletionsModel';
+export {
+  ChatCompletionsClient,
+  type ChatCompletionsClientConfig,
+} from './model/chatCompletions/ChatCompletionsClient';
 
 // Tools
 export { tool, toApiTool, type FunctionTool, type ToolDefinition } from './tools/tool';
@@ -52,13 +60,23 @@ export { ToolResolver, type ResolvedToolInfo } from './tools/toolResolver';
 export { MCPToolManager, type MCPConnection, type MCPConnectionFactory } from './tools/mcpTool';
 export { executeToolCalls, type ToolCallRequest, type ToolCallResult } from './tools/toolExecution';
 export { type ToolScopeProvider, type ToolDescriptor, type ToolScopeResult } from './tools/toolScopeProvider';
+export {
+  webSearchTool,
+  fileSearchTool,
+  type WebSearchToolOptions,
+  type FileSearchToolOptions,
+} from './tools/hostedTools';
+export {
+  hostedMcpTool,
+  type HostedMcpToolOptions,
+} from './tools/hostedMcpTool';
 
 // Runner
 export { RunContext } from './runner/RunContext';
 export type { RunResult } from './runner/RunResult';
 export { StreamedRunResult } from './runner/StreamedRunResult';
 export type { RunState } from './runner/RunState';
-export { createInitialState, createInterruptedState } from './runner/RunState';
+export { createInitialState, createInterruptedState, serializeRunState, deserializeRunState } from './runner/RunState';
 export {
   DefaultOutputClassifier,
   type OutputClassifierInterface,
@@ -124,6 +142,13 @@ export {
 // Logger
 export { type ILogger, consoleLogger, noopLogger } from './logger';
 
+// Zod compatibility (optional peer dep)
+export {
+  isZodAvailable,
+  zodSchemaToJsonSchema,
+  validateWithZod,
+} from './utils/zodCompat';
+
 // Types
 export type {
   AgentConfig,
@@ -154,6 +179,9 @@ export type {
   ResponsesApiFunctionCall,
   FunctionCallOutputItem,
   ResponseUsage,
+  ResponsesApiMcpApprovalRequest,
+  ResponsesApiMcpListTools,
+  McpApprovalResponseItem,
 } from './types/responsesApi';
 export type {
   AgentLifecycleEvent,

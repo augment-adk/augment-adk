@@ -73,9 +73,26 @@ export interface ResponsesApiReasoningItem {
   status?: 'completed' | 'in_progress';
 }
 
+export interface ResponsesApiMcpApprovalRequest {
+  type: 'mcp_approval_request';
+  id: string;
+  server_label: string;
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+export interface ResponsesApiMcpListTools {
+  type: 'mcp_list_tools';
+  id: string;
+  server_label: string;
+  tools: Array<{ name: string; description?: string; input_schema?: Record<string, unknown> }>;
+}
+
 export type ResponsesApiOutputEvent =
   | ResponsesApiFileSearchResult
   | ResponsesApiMcpCall
+  | ResponsesApiMcpApprovalRequest
+  | ResponsesApiMcpListTools
   | ResponsesApiMessage
   | ResponsesApiFunctionCall
   | ResponsesApiFunctionCallOutput
@@ -108,10 +125,18 @@ export interface ItemReferenceInputItem {
   id: string;
 }
 
+export interface McpApprovalResponseItem {
+  type: 'mcp_approval_response';
+  approval_request_id: string;
+  approve: boolean;
+  reason?: string;
+}
+
 export type ResponsesApiInputItem =
   | FunctionCallOutputItem
   | MessageInputItem
-  | ItemReferenceInputItem;
+  | ItemReferenceInputItem
+  | McpApprovalResponseItem;
 
 // ============================================================================
 // Responses API Tool Definitions
@@ -131,6 +156,8 @@ export interface ResponsesApiMcpTool {
   require_approval: 'never' | 'always' | { always?: string[]; never?: string[] };
   headers?: Record<string, string>;
   allowed_tools?: string[];
+  /** LlamaStack connector ID for server-side MCP routing. */
+  connector_id?: string;
 }
 
 export interface ResponsesApiFunctionTool {
