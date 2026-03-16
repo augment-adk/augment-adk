@@ -7,14 +7,17 @@ A standalone, production-grade TypeScript Agent Development Kit for the **LlamaS
 ## Features
 
 - **Multi-Agent Orchestration** — Define agent graphs with typed handoffs, per-agent instructions, and configurable routing
+- **Multiple Model Backends** — `LlamaStackModel` for Responses API, `ChatCompletionsModel` for any OpenAI-compatible endpoint
 - **Tool Calling** — First-class MCP tool integration with fuzzy name resolution, output truncation, and schema sanitization
-- **Human-in-the-Loop** — Built-in approval store with TTL-based expiry, tool-level or server-level approval policies
+- **Hosted Tools** — `webSearchTool()`, `fileSearchTool()`, `hostedMcpTool()` factories for server-side tool definitions
+- **Human-in-the-Loop** — Built-in approval store with TTL-based expiry, MCP approval flow, and tool-level approval policies
 - **Stream Normalization** — Converts LlamaStack SSE events into a clean, typed `NormalizedStreamEvent` union
 - **Guardrails** — Input and output validation for tool calls with configurable rules
 - **Context Overflow Resilience** — Automatic tool reduction and graceful error handling when hitting token limits
+- **Dynamic Instructions** — Static strings or async functions for runtime instruction resolution
 - **Lifecycle Hooks** — `onRunStart`, `onRunEnd`, `onTurnStart`, `onHandoff`, and per-agent hooks
 - **Resumable State** — `RunState` for serializing and resuming interrupted runs (HITL continuations)
-- **Zero External Dependencies** — Only Node.js built-ins at runtime
+- **Zero External Dependencies** — Only Node.js built-ins at runtime (Zod is an optional peer dep)
 
 ## Quick Start
 
@@ -60,6 +63,51 @@ const result = await run('What is the capital of France?', {
 console.log(result.content);
 ```
 
+## Using with OpenAI-Compatible Backends
+
+Use `ChatCompletionsModel` to connect to any provider that implements the Chat Completions API (OpenAI, Ollama, vLLM, etc.):
+
+```typescript
+import { run, ChatCompletionsModel } from '@augment-adk/augment-adk';
+
+const model = new ChatCompletionsModel({
+  clientConfig: {
+    baseUrl: 'http://localhost:11434', // Ollama, vLLM, etc.
+    token: process.env.API_KEY,
+  },
+});
+
+const result = await run('Explain Kubernetes pods', {
+  model,
+  agents: {
+    assistant: {
+      name: 'Assistant',
+      instructions: 'You are a helpful DevOps expert.',
+    },
+  },
+  defaultAgent: 'assistant',
+  config: {
+    model: 'llama3.1',
+    baseUrl: 'http://localhost:11434',
+    systemPrompt: 'You are a helpful DevOps expert.',
+    enableWebSearch: false,
+    enableCodeInterpreter: false,
+    vectorStoreIds: [],
+    vectorStoreName: '',
+    embeddingModel: '',
+    embeddingDimension: 384,
+    chunkingStrategy: 'auto',
+    maxChunkSizeTokens: 800,
+    chunkOverlapTokens: 400,
+    skipTlsVerify: false,
+    zdrMode: false,
+    verboseStreamLogging: false,
+  },
+});
+
+console.log(result.content);
+```
+
 ## Architecture
 
 ```
@@ -79,15 +127,20 @@ console.log(result.content);
 │   │   └── lifecycle.ts       # Lifecycle event types
 │   ├── model/                 # Model abstraction layer
 │   │   ├── model.ts           # Abstract Model interface
-│   │   └── llamastack/        # LlamaStack implementation
-│   │       ├── LlamaStackModel.ts
-│   │       ├── ResponsesApiClient.ts
-│   │       ├── requestBuilder.ts
-│   │       ├── streamParser.ts
-│   │       ├── serverCapabilities.ts
-│   │       └── errors.ts
+│   │   ├── llamastack/        # LlamaStack Responses API
+│   │   │   ├── LlamaStackModel.ts
+│   │   │   ├── ResponsesApiClient.ts
+│   │   │   ├── requestBuilder.ts
+│   │   │   ├── streamParser.ts
+│   │   │   ├── serverCapabilities.ts
+│   │   │   └── errors.ts
+│   │   └── chatCompletions/   # OpenAI-compatible Chat Completions
+│   │       ├── ChatCompletionsModel.ts
+│   │       └── ChatCompletionsClient.ts
 │   ├── tools/                 # Tool system
 │   │   ├── tool.ts            # FunctionTool interface & factory
+│   │   ├── hostedTools.ts     # Web search & file search factories
+│   │   ├── hostedMcpTool.ts   # Hosted MCP tool factory
 │   │   ├── toolResolver.ts    # Fuzzy name matching
 │   │   ├── mcpTool.ts         # MCP tool manager
 │   │   ├── toolExecution.ts   # Tool dispatch & execution
@@ -246,6 +299,7 @@ const result = await run(question, {
 | Example | Description |
 |---------|-------------|
 | [basic](./examples/basic) | Single-agent question answering |
+| [chat-completions](./examples/chat-completions) | OpenAI-compatible backend via ChatCompletionsModel |
 | [multi-agent](./examples/multi-agent) | Router + specialist agent graph |
 | [mcp-tools](./examples/mcp-tools) | MCP server tool calling |
 | [human-in-the-loop](./examples/human-in-the-loop) | Approval workflow |
@@ -254,14 +308,14 @@ const result = await run(question, {
 
 | Feature | OpenAI Agents SDK | Augment ADK |
 |---------|-------------------|-------------|
-| Backend | OpenAI API | LlamaStack Responses API |
+| Backend | OpenAI API | LlamaStack + any OpenAI-compatible API |
 | Multi-agent | Agent handoffs | Agent handoffs + graph validation |
-| Tools | Function tools, MCP | Function tools, MCP + fuzzy resolution |
-| HITL | — | Built-in approval store |
+| Tools | Function tools, hosted tools, MCP | Function tools, hosted tools, MCP + fuzzy resolution |
+| HITL | — | Built-in approval store + MCP approval flow |
 | Guardrails | Input/output guardrails | Input/output guardrails |
 | Streaming | OpenAI SSE | LlamaStack SSE normalization |
-| State | — | Serializable RunState |
-| Dependencies | openai SDK | Zero runtime dependencies |
+| State | — | Serializable RunState with approval persistence |
+| Dependencies | openai SDK | Zero runtime dependencies (Zod optional) |
 
 ## Development
 
