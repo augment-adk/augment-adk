@@ -1,111 +1,106 @@
 # Architecture
 
-This document explains the design decisions behind Augment ADK, how the codebase is structured, where the extension points are, and how it relates to other agent development kits in the ecosystem.
+## Design thesis
 
-## Why this exists
+Augment ADK is a TypeScript orchestration library for multi-agent workflows over the Responses API. It is architecturally inspired by the [OpenAI Agents JS SDK](https://github.com/openai/openai-agents-js) -- the core patterns (agent configuration, run loop, handoffs, tool resolution) follow similar design principles, and the project acknowledges this openly.
 
-Most agent frameworks fall into one of two categories:
+What distinguishes this project is a narrow set of deliberate constraints:
 
-1. **Full-stack Python frameworks** (LangChain/LangGraph, CrewAI, Google ADK) -- rich ecosystems but large dependency trees, Python-only, and tightly coupled to specific providers.
-2. **Provider-locked TypeScript SDKs** (OpenAI Agents JS, Vercel AI SDK) -- excellent developer experience but designed around a single provider's API.
+1. **Zero external runtime dependencies.** The core package (`adk-core`) has no npm `dependencies`. HTTP clients are built on Node's native `http`/`https` modules. The only optional peer dependencies are `zod` and `zod-to-json-schema` for runtime schema validation. This is a supply-chain decision: in regulated environments, every transitive dependency requires audit, SBOM inclusion, and license review.
 
-Augment ADK fills a specific gap: a **lightweight TypeScript orchestration layer** for the [Responses API](https://platform.openai.com/docs/api-reference/responses) pattern, with first-class support for [LlamaStack](https://github.com/meta-llama/llama-stack) and any OpenAI-compatible backend.
+2. **Library, not framework.** The ADK exports plain functions (`run()`, `runStream()`) and TypeScript interfaces. It does not own the process, register global state, or impose an application structure. It is designed to be embedded inside host applications -- a Backstage plugin, an Express server, a CLI tool -- where the host controls the HTTP server, auth, configuration, and lifecycle.
 
-The primary design goals are:
-
-- **Zero external runtime dependencies.** The `adk-core` package has no npm `dependencies` -- only build-time `devDependencies` and optional `peerDependencies` (zod). This matters for enterprise environments with strict supply-chain security, SBOM compliance, and dependency auditing requirements.
-- **Embeddable, not monolithic.** The ADK is designed to be embedded as a library inside larger applications (Backstage plugins, Express servers, CLI tools), not to own the process. The `Model` interface lets host applications use their own HTTP clients, connection pools, and auth.
-- **Focused scope.** Multi-agent orchestration, tool execution, approval workflows, and streaming. No RAG pipelines, vector store abstractions, prompt template engines, or memory systems beyond conversation sessions.
-
-### Relation to OpenAI Agents JS SDK
-
-The architecture is openly inspired by the [OpenAI Agents JS SDK](https://github.com/openai/openai-agents-js). Core patterns -- agent configs, the run loop, handoffs, tool resolution -- follow similar design principles. The README and package.json acknowledge this explicitly. What differs is the target: Augment ADK is built for LlamaStack's Responses API and designed to work without any OpenAI-specific infrastructure.
+3. **LlamaStack Responses API as the primary target.** While the ADK also ships a `ChatCompletionsModel` for OpenAI-compatible backends, the type system, streaming normalization, MCP tool handling, and approval flows are designed around Meta's [LlamaStack](https://github.com/meta-llama/llama-stack) implementation of the Responses API.
 
 ## Codebase structure
 
+~73 source files, ~53 test files across four packages:
+
 ```
 packages/
-  adk-core/              # Provider-agnostic orchestration engine
+  adk-core/                  Provider-agnostic orchestration engine (0 runtime deps)
     src/
-      agent/             # Agent config, graph resolution, handoff logic
-      approval/          # ApprovalStore, partitionByApproval
-      guardrails/        # Input and output guardrail evaluation
-      runner/            # Run loop, streaming loop, context, state
-      session/           # Session interface, InMemory, ServerManaged, Compaction
-      stream/            # SSE normalization, event handlers, accumulator
-      tools/             # Tool resolution, MCP, function tools, scoping
-      tracing/           # Span/Trace providers, batch processor
-      types/             # AgentConfig, EffectiveConfig, Responses API types
-      model.ts           # Model interface (the main extension point)
-      hooks.ts           # Lifecycle hooks
-      errors.ts          # Error hierarchy
-      run.ts             # Top-level run() entry point
-      runStream.ts       # Top-level runStream() entry point
+      agent/                 Agent config, graph resolution, handoff logic
+      approval/              ApprovalStore, partitionByApproval
+      guardrails/            Input and output guardrail evaluation
+      runner/                Run loop, streaming loop, context, state, retry
+      session/               Session interface and implementations
+      stream/                SSE normalization, event handlers, accumulator
+      tools/                 Tool resolution, MCP, function tools, scoping
+      tracing/               Span/Trace providers, batch processor
+      types/                 AgentConfig, EffectiveConfig, Responses API types
+      model.ts               Model interface (primary extension point)
+      hooks.ts               Lifecycle hooks
+      errors.ts              Error hierarchy (AdkError, MaxTurnsError, etc.)
+      run.ts                 Top-level run() entry point
+      runStream.ts           Top-level runStream() entry point
 
-  adk-llamastack/        # LlamaStack Responses API provider
+  adk-llamastack/            LlamaStack Responses API provider
     src/
-      LlamaStackModel.ts # Model implementation for LlamaStack
-      ResponsesApiClient.ts # HTTP/SSE client
-      requestBuilder.ts  # Request construction
-      streamParser.ts    # SSE stream parsing
+      LlamaStackModel.ts     Model implementation
+      ResponsesApiClient.ts  HTTP/SSE client (Node native http/https)
+      requestBuilder.ts      Request construction and parameter mapping
+      streamParser.ts        SSE stream parsing
 
-  adk-openai-compat/     # OpenAI-compatible Chat Completions provider
+  adk-openai-compat/         OpenAI-compatible Chat Completions provider
     src/
-      ChatCompletionsModel.ts  # Model implementation for /v1/chat/completions
-      ChatCompletionsClient.ts # HTTP client
+      ChatCompletionsModel.ts    Model implementation for /v1/chat/completions
+      ChatCompletionsClient.ts   HTTP client
 
-  augment-adk/           # Batteries-included entry point (re-exports all)
-
-examples/                # Runnable examples and integration guides
+  augment-adk/               Umbrella package (re-exports all sub-packages)
 ```
 
-## How the run loop works
+## Run loop
 
-The core execution flow for a single `run()` call:
+The core execution model is a turn-based loop. Each turn calls the model, classifies the output, and either returns a result or continues the loop.
 
 ```
 run(userMessage, options)
   |
   v
-resolveAgentGraph(agents)          -- validate agent graph, detect cycles
+resolveAgentGraph(agents)            Validate agent graph, detect cycles, resolve handoff targets
   |
   v
-runLoop(input, agents, model, ...) -- main orchestration loop
+runLoop(input, agents, model, ...)   Main orchestration loop
   |
   +---> [Turn N]
   |       |
   |       v
-  |     buildAgentTools()          -- merge function tools + MCP tools + handoff tools
+  |     buildAgentTools()            Merge function tools + MCP tools + handoff tools + agent-as-tool
   |       |
   |       v
-  |     model.chatTurn()           -- call the model via the Model interface
+  |     withRetry(model.chatTurn())  Call the model (with configurable retry policy)
   |       |
   |       v
-  |     outputClassifier.classify() -- categorize: final_output | handoff | tool_calls | ...
+  |     outputClassifier.classify()  Categorize the response
   |       |
   |       v
   |     processTurnClassification()
   |       |
-  |       +---> final_output       -- extract text, return RunResult
-  |       +---> handoff            -- switch active agent, continue loop
-  |       +---> tool_calls         -- execute tools, feed results back
-  |       +---> agent_tool         -- run sub-agent, feed result back
-  |       +---> mcp_approval       -- pause, return pending approvals
-  |       +---> backend_tool       -- execute function tools, continue
+  |       +---> final_output        Extract text, return RunResult
+  |       +---> handoff             Switch active agent, continue loop
+  |       +---> tool_calls          Execute server-side tools (MCP), feed results back
+  |       +---> backend_tool        Execute local function tools, feed results back
+  |       +---> agent_tool          Fork context, run sub-agent, feed result back
+  |       +---> mcp_approval        Serialize state, return pending approvals for HITL
   |
   +---> [Turn N+1] ...
   |
   v
-RunResult { content, agentName, handoffPath, toolCalls, usage, ... }
+RunResult { content, agentName, handoffPath, toolCalls, usage, pendingApprovals }
 ```
 
-Streaming (`runStream()`) follows the same logic but yields `RunStreamEvent` objects as an async iterable during execution.
+**Streaming** (`runStream()`) follows the same control flow but has its own run loop implementation (`runLoopStream`) that yields `RunStreamEvent` objects as an async iterable during execution. It is not a wrapper around the non-streaming path. The `StreamAccumulator` incrementally builds the final `RunResult` from granular SSE events.
+
+**Agent graph validation** happens before the first model call. `resolveAgentGraph()` detects cycles, validates that all handoff targets exist, and produces a frozen snapshot of the agent graph. Malformed graphs fail fast at startup, not mid-conversation.
+
+**Retry** is handled via composable retry policies (`onNetworkError`, `onRateLimit`, `onServerError`, `maxAttempts`) with exponential backoff and `AbortSignal` support. Policies are applied at the model call boundary, not at the HTTP level.
 
 ## Extension points
 
-### Model interface
+### Model
 
-The primary extension point. Every model interaction goes through this 3-method interface:
+The primary extension point. The run loop interacts with models exclusively through this interface:
 
 ```typescript
 interface Model {
@@ -115,15 +110,13 @@ interface Model {
 }
 ```
 
-**Built-in implementations:** `LlamaStackModel`, `ChatCompletionsModel`
+Built-in implementations: `LlamaStackModel`, `ChatCompletionsModel`.
 
-**To add a new provider** (e.g., Anthropic, Bedrock, Gemini native): implement `Model`, translating the provider's response format into `ResponsesApiResponse`. The Responses API format is becoming a de facto standard -- the translation is typically straightforward.
+To add a new provider, implement these three methods and translate the provider's native response format into `ResponsesApiResponse` at the boundary. The [Backstage plugin example](./examples/backstage-plugin/src/ModelAdapter.ts) demonstrates how a host application wraps its own HTTP client behind this interface.
 
-The [backstage-plugin example](./examples/backstage-plugin/src/ModelAdapter.ts) shows how a host application implements this interface with its own HTTP client.
+### Session
 
-### Session interface
-
-Pluggable conversation history storage:
+Conversation history storage:
 
 ```typescript
 interface Session {
@@ -135,25 +128,23 @@ interface Session {
 }
 ```
 
-**Built-in implementations:** `InMemorySession`, `ServerManagedSession`, `CompactionSession`
+Built-in: `InMemorySession` (development), `ServerManagedSession` (LlamaStack server-side history), `CompactionSession` (summarizes history when it exceeds a token threshold).
 
-**To add a new backend** (Redis, PostgreSQL, DynamoDB): implement these 5 methods. `InMemorySession` is 30 lines and serves as a reference.
+### Tools
 
-### Tool system
+Three integration levels:
 
-Three levels of tool integration:
+| Level | Mechanism | Where it executes |
+|-------|-----------|-------------------|
+| Function tools | `tool()` factory with an `execute` handler | In your process |
+| Hosted MCP tools | `hostedMcpTool()` declaration | On the LlamaStack server (server connects to MCP server) |
+| MCP tool manager | `MCPToolManager` with a connection factory | Client-side MCP protocol |
 
-| Level | Mechanism | Execution |
-|-------|-----------|-----------|
-| Function tools | `tool()` factory with `execute` handler | Local (in your process) |
-| Hosted MCP tools | `hostedMcpTool()` declaration | Server-side (LlamaStack connects to MCP server) |
-| MCP tool manager | `MCPToolManager` with connection factory | Client-side MCP protocol |
-
-Function tools have the simplest contract: `execute: (args) => Promise<string>`. Any external service (REST API, gRPC, database query, shell command) can be wrapped as a function tool.
+Function tools have the simplest contract: `execute: (args: TArgs) => Promise<string>`. This is the same pattern used in the Backstage plugin, which discovers backend tools from MCP servers and wraps each one as a `FunctionTool` with an execute handler that proxies the call.
 
 ### ToolScopeProvider
 
-Interface for semantic tool filtering (reduce tools sent to the model when there are many):
+Semantic tool filtering for large tool sets:
 
 ```typescript
 interface ToolScopeProvider {
@@ -162,11 +153,11 @@ interface ToolScopeProvider {
 }
 ```
 
-The core ships no implementation -- bring your own TF-IDF, embedding-based, or keyword matching. This is intentionally left as an extension point to avoid forcing a specific approach or adding heavy dependencies.
+The core ships no implementation. This is intentional -- tool scoping requires embedding models or TF-IDF indexes that would add significant dependencies. Consumers provide their own.
 
 ### ToolSearchProvider
 
-Deferred tool loading -- tools discovered on-demand when the model requests them:
+Deferred tool discovery (tools loaded on-demand when the model requests them):
 
 ```typescript
 interface ToolSearchProvider {
@@ -174,9 +165,9 @@ interface ToolSearchProvider {
 }
 ```
 
-**Built-in:** `StaticToolSearchProvider`, `RemoteToolSearchProvider`
+Built-in: `StaticToolSearchProvider` (pre-loaded list), `RemoteToolSearchProvider` (HTTP-based).
 
-### Lifecycle hooks
+### Hooks
 
 ```typescript
 interface RunHooks {
@@ -184,9 +175,9 @@ interface RunHooks {
   onRunEnd?(result): void;
   onTurnStart?(turn, agentKey): void;
   onTurnEnd?(turn, agentKey): void;
-  inputFilter?(input, agentKey, turn): input;
+  inputFilter?(input, agentKey, turn): input;    // pre-model-call input transformation
   toolErrorFormatter?(toolName, error): string;
-  onModelError?(error, agentKey, turn): string | undefined;
+  onModelError?(error, agentKey, turn): string | undefined;  // return fallback or rethrow
 }
 
 interface AgentHooks {
@@ -198,8 +189,6 @@ interface AgentHooks {
 }
 ```
 
-Use hooks for logging, metrics, audit trails, or custom error handling without modifying core code.
-
 ### Tracing
 
 ```typescript
@@ -209,54 +198,77 @@ interface TracingProcessor {
 }
 ```
 
-**Built-in:** `BatchTraceProcessor`, `ConsoleSpanExporter`. Implement `TracingProcessor` to send spans to Jaeger, Datadog, OpenTelemetry collectors, etc.
+Built-in: `BatchTraceProcessor` (batches spans and flushes periodically), `ConsoleSpanExporter`. Implement `TracingProcessor` to export to OpenTelemetry collectors, Jaeger, or Datadog.
 
-## What would it take to extend
+## Trade-offs and limitations
 
-### Adding a new model provider
+These are deliberate constraints, not accidental gaps.
 
-**Effort: Small.** Implement the `Model` interface (3 methods). The response format translation is the main work. See `packages/adk-llamastack/src/LlamaStackModel.ts` (~200 lines) or `packages/adk-openai-compat/src/ChatCompletionsModel.ts` for reference.
+### The type system is coupled to the Responses API shape
 
-### Integrating with a web framework
+All internal components -- the run loop, output classifier, response processor, stream accumulator, session interface -- operate on `ResponsesApiInputItem`, `ResponsesApiResponse`, and `ResponsesApiTool` types. These are structural mirrors of the OpenAI/LlamaStack Responses API JSON format.
 
-**Effort: Small.** `run()` and `runStream()` are plain async functions. Wrap them in your framework's route handlers. See `examples/backstage-plugin/src/Orchestrator.ts` for the Express pattern. The same approach works with Fastify, Hono, NestJS, or any Node.js framework.
+This means that adding a new model provider requires translating the provider's native format to/from these types at the `Model` boundary. For providers that already implement the Responses API (LlamaStack, OpenAI), this is trivial. For providers with significantly different formats (Anthropic Messages API, Google GenerateContent), the adapter needs to map fields. This is feasible -- the Responses API types cover standard constructs (messages, function calls, tool outputs) -- but it is additional work that wouldn't exist with a fully generic internal type system.
 
-### Adding parallel agent execution
+The trade-off is simplicity: a single concrete type system is easier to reason about, test, and maintain than a generic one with type parameters throughout the codebase.
 
-**Effort: Medium.** The current run loop executes agents sequentially (one active agent at a time). `RunContext.fork()` already provides isolated contexts for sub-agent runs. Adding fan-out/fan-in would require a new orchestration mode on top of the existing `runLoop`, not a rewrite of it.
+### EffectiveConfig is broad
 
-### Slimming down EffectiveConfig
+The `EffectiveConfig` interface has ~40 fields covering model parameters, RAG settings, vector store config, TLS options, and more. Many fields are irrelevant for non-LlamaStack providers. This reflects the config's origin as a Backstage plugin config object that was brought into the core.
 
-**Effort: Medium.** The current `EffectiveConfig` has ~40 fields mixing model parameters, RAG settings, and infrastructure config. Splitting it into a small required core and optional extension interfaces is mechanical refactoring. Every file touching `EffectiveConfig` needs updating, but the changes are predictable.
+This does not cause runtime issues (unused fields are ignored), but it is a leaky abstraction. A cleaner design would split it into a small required core (`model`, `baseUrl`, `temperature`, `maxOutputTokens`) and optional extension interfaces. This is a known improvement area.
 
-### DAG-based orchestration
+### Sequential agent execution only
 
-**Effort: Large.** The current model is linear: agents hand off to other agents in a chain. For stateful graph workflows with conditional edges, parallel branches, and checkpointing (like LangGraph), you would build a higher-level orchestrator that calls `run()` as a primitive for each node, rather than modifying the core run loop.
+The run loop executes one agent at a time. Handoffs are linear: agent A hands off to agent B, which may hand off to agent C. There is no built-in fan-out/fan-in (run agents A and B in parallel, merge results).
 
-## Comparison with other frameworks
+`RunContext.fork()` exists for isolating sub-agent state, so the foundation for parallel execution is present. But the orchestration logic to coordinate concurrent agents, handle partial failures, and merge results would need to be built.
 
-| Aspect | Augment ADK | OpenAI Agents JS | LangChain/LangGraph | Google ADK | CrewAI |
-|--------|-------------|-----------------|---------------------|------------|--------|
-| Language | TypeScript | TypeScript | Python (+ JS) | Python | Python |
-| Runtime deps | 0 | openai SDK | 100+ | google-genai | 50+ |
-| Primary target | LlamaStack + OpenAI-compat | OpenAI | Any (via adapters) | Gemini | Any (via LiteLLM) |
-| Multi-agent | Handoff graph | Handoff graph | Stateful graph (DAG) | Agent-to-agent | Role-based crews |
-| Tool protocol | Function + MCP | Function + MCP | Tools + Toolkits | Function + MCP | Tools |
-| Streaming | SSE normalization | SSE | Callbacks/streams | SSE | Limited |
-| Approval/HITL | Built-in (core) | Basic | Via checkpointing | Planned | No |
-| Embeddable | Yes (library) | Yes (library) | Framework-level | Framework-level | Framework-level |
-| License | Apache-2.0 | MIT | MIT | Apache-2.0 | MIT |
+For DAG-based workflows (LangGraph-style conditional routing with cycles and checkpointing), the recommended pattern is to build a higher-level orchestrator that calls `run()` as a primitive for each graph node.
 
-The honest positioning: Augment ADK is not trying to replace LangChain or be a general-purpose AI framework. It is a focused orchestration layer for the Responses API pattern, optimized for TypeScript environments that need minimal dependencies, clean auditability, and embeddability in larger platforms like Backstage.
+### Streaming is SSE-specific
 
-## Key design decisions
+`chatTurnStream` takes an `onEvent: (eventData: string) => void` callback that receives raw SSE event strings. The normalization layer (`normalizeLlamaStackEvent`) parses these into typed objects. Supporting WebSocket or gRPC streaming would require generalizing this callback, though the internal components already work with parsed objects.
 
-1. **Responses API as the internal type system.** All internal components operate on `ResponsesApiInputItem`, `ResponsesApiResponse`, and `ResponsesApiTool` types. This is a deliberate choice -- the Responses API is becoming the industry standard format (originated by OpenAI, adopted by LlamaStack, converging across providers). New model providers translate their native format at the `Model` boundary.
+### No built-in persistence
 
-2. **No dependency on any AI provider SDK.** The HTTP clients (`ResponsesApiClient`, `ChatCompletionsClient`) are built on Node's native `http`/`https` modules. No `openai`, `@anthropic-ai/sdk`, or `@google/generative-ai` packages. This keeps the dependency tree completely clean.
+Sessions, approval state, and traces are in-memory by default. The interfaces (`Session`, `TracingProcessor`, `ApprovalStore`) support external backends, but the ADK does not ship Redis, PostgreSQL, or file-system implementations. The host application is expected to provide these if needed.
 
-3. **Agent graph validation at startup.** `resolveAgentGraph()` validates the entire agent graph before the first model call -- detecting cycles, missing agents, and invalid handoff targets. Errors surface immediately, not mid-conversation.
+### No prompt engineering utilities
 
-4. **Streaming as first-class.** `runStream()` is not a wrapper around `run()` -- it has its own run loop (`runLoopStream`) that yields `RunStreamEvent` objects as they occur. The `StreamAccumulator` incrementally builds the final result from granular events.
+No prompt template engine, few-shot example management, or chain-of-thought scaffolding. Instructions are plain strings (or async functions via `DynamicInstructions`). The ADK assumes the model is capable enough that orchestration (routing, tool use, handoffs) matters more than prompt construction.
 
-5. **Approval as a core concern.** `ApprovalStore`, `RunState` serialization, and MCP approval flows are in `adk-core`, not a plugin. Interrupted runs can be serialized, persisted, and resumed after human review.
+## Security considerations
+
+- **TLS verification** is configurable per-model (`skipTlsVerify`). In production, TLS verification should be enabled. The skip option exists for development against self-signed certificates.
+- **No credential storage.** API keys and tokens are passed via configuration or environment variables. The ADK does not persist credentials.
+- **Input sanitization.** `sanitizeMcpError()` strips potentially sensitive information from MCP tool error messages before they reach the model. `safetyPatterns` in `EffectiveConfig` support regex-based input filtering.
+- **Tool execution isolation.** Function tools execute in the host process with no sandboxing. The host application is responsible for ensuring tool handlers do not perform unauthorized operations. MCP tools execute either on the LlamaStack server (hosted) or via client-side MCP connections.
+- **Approval workflows.** Destructive tool calls can require human approval via `requireApproval` on MCP server configs. `RunState` serialization allows interrupted runs to be persisted and resumed after review.
+
+## Extensibility effort estimates
+
+| Extension | Effort | Notes |
+|-----------|--------|-------|
+| New model provider | Small | Implement `Model` (3 methods). See `LlamaStackModel` (~200 LOC) as reference. |
+| New web framework integration | Small | `run()` and `runStream()` are plain functions. Wrap in route handlers. |
+| New session backend | Small | Implement `Session` (5 methods). `InMemorySession` is ~30 LOC. |
+| Custom tracing exporter | Small | Implement `TracingProcessor` (2 methods). |
+| Parallel agent execution | Medium | Build on `RunContext.fork()`. New orchestration layer, not a core rewrite. |
+| EffectiveConfig refactoring | Medium | Mechanical split into core + extensions. Touches many files. |
+| Generalized streaming (WebSocket/gRPC) | Medium | Abstract the `onEvent` callback to typed objects. Internal components are ready. |
+| DAG-based orchestration | Large | Higher-level orchestrator using `run()` as a per-node primitive. |
+
+## Relation to other frameworks
+
+This project occupies a specific niche: TypeScript, zero-dependency, Responses API-native, embeddable. It is not a general-purpose AI framework. It does not include RAG pipelines, vector store abstractions, prompt template engines, or memory systems beyond conversation sessions.
+
+**OpenAI Agents JS SDK** is the closest architectural relative and the acknowledged inspiration. The key differences are: Augment ADK targets LlamaStack (not just OpenAI), has zero external runtime dependencies (vs. the `openai` package), and includes HITL approval as a core concern.
+
+**LangChain / LangGraph** (Python and JS) is a significantly larger ecosystem with broader scope -- chains, retrievers, memory, graph-based orchestration. The trade-off is a large dependency tree and framework-level coupling. LangGraph's stateful DAG model is more powerful than Augment ADK's linear handoff model for complex workflows.
+
+**Google ADK** (Python and TypeScript) is designed around Gemini and Google Cloud services. It shares the agent-to-agent orchestration pattern but is tightly integrated with Google's ecosystem.
+
+**CrewAI** (Python) uses a role-based "crew" metaphor for multi-agent coordination. It has a higher-level API that is easier to get started with but less flexible for custom orchestration patterns.
+
+Each of these frameworks makes valid trade-offs for their target audience. Augment ADK's trade-off is depth for focus: it does less, but what it does -- multi-agent orchestration over the Responses API with minimal dependencies -- it aims to do cleanly.
