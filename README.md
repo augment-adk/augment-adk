@@ -116,6 +116,10 @@ import { run, Agent } from '@augment-adk/adk-core';
 import { LlamaStackModel } from '@augment-adk/adk-llamastack';
 ```
 
+## Architecture
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for design decisions, extension points, and how the run loop works. Start there if you want to add a new model provider, integrate with a different framework, or understand how the codebase is structured.
+
 ## Development
 
 ```bash
