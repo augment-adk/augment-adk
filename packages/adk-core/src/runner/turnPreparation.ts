@@ -7,7 +7,6 @@ import type {
   ResponsesApiFunctionTool,
 } from '../types/responsesApi';
 import type { ToolScopeProvider, ToolDescriptor } from '../tools/toolScopeProvider';
-import { promptWithHandoffInstructions } from '../agent/handoff';
 
 const DEFAULT_ACTIVATION_THRESHOLD = 10;
 const DEFAULT_MAX_TOOLS_PER_TURN = 6;

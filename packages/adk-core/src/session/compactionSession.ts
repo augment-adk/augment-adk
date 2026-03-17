@@ -101,14 +101,9 @@ export class CompactionSession implements Session {
     const toSummarize = allItems.slice(0, cutoff);
     const toPreserve = allItems.slice(cutoff);
 
-    let summary: string;
-    try {
-      summary = await this.summarize(toSummarize);
-    } catch (err) {
-      // Leave session in its current (over-threshold) state rather than
-      // corrupting it. The next addItems call will retry compaction.
-      throw err;
-    }
+    // If summarization fails, the session stays in its current
+    // (over-threshold) state. The next addItems call will retry compaction.
+    const summary = await this.summarize(toSummarize);
 
     const summaryItem: ResponsesApiInputItem = {
       type: 'message',

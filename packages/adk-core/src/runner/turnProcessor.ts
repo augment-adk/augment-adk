@@ -26,7 +26,6 @@ import {
 import { buildAgentTools, type TurnDeps } from './turnExecution';
 import { buildAgentEffectiveConfig } from './turnPreparation';
 import {
-  shouldStopAtToolNames,
   evaluateToolUseBehavior,
   validateOutput,
   mergeAccumulatedToolCalls,

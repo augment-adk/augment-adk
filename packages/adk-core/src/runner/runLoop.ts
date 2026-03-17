@@ -35,7 +35,6 @@ import {
   handleMaxTurnsExceeded,
   registerFunctionTools,
   DEFAULT_MAX_AGENT_VISITS,
-  DEFAULT_SUB_AGENT_TURNS,
   type TurnEmitter,
   type SubAgentRunner,
 } from './turnProcessor';

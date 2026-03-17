@@ -24,7 +24,6 @@ import {
   toErrorMessage,
 } from '../errors';
 import { withRetry } from './retryPolicy';
-import { runLoop } from './runLoop';
 import {
   processTurnClassification,
   handleMaxTurnsExceeded,
@@ -113,11 +112,8 @@ export async function runLoopStream(
       maxTurns,
     };
 
-    const {
-      resumeState: _resume,
-      approvalDecisions: _decisions,
-      ...parentOpts
-    } = options;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { resumeState, approvalDecisions, ...parentOpts } = options;
     return runLoopStream(subInput, subSnapshot, {
       ...parentOpts,
       model: procOptions.model,
