@@ -1,29 +1,36 @@
 # Augment ADK
 
-A standalone, production-grade TypeScript Agent Development Kit for the **LlamaStack Responses API**. Inspired by the [OpenAI Agents JS SDK](https://github.com/openai/openai-agents-js), purpose-built for LlamaStack's `/v1/responses` endpoint.
+[![CI](https://github.com/augment-adk/augment-adk/actions/workflows/ci.yml/badge.svg)](https://github.com/augment-adk/augment-adk/actions/workflows/ci.yml)
 
-**Zero Backstage dependencies. Framework-agnostic. Ready for any TypeScript runtime.**
+A lightweight, provider-agnostic TypeScript framework for building multi-agent workflows. Inspired by the [OpenAI Agents JS SDK](https://github.com/openai/openai-agents-js), designed for LlamaStack and any OpenAI-compatible backend.
 
-## Features
+## Core concepts
 
-- **Multi-Agent Orchestration** — Define agent graphs with typed handoffs, per-agent instructions, and configurable routing
-- **Multiple Model Backends** — `LlamaStackModel` for Responses API, `ChatCompletionsModel` for any OpenAI-compatible endpoint
-- **Tool Calling** — First-class MCP tool integration with fuzzy name resolution, output truncation, and schema sanitization
-- **Hosted Tools** — `webSearchTool()`, `fileSearchTool()`, `hostedMcpTool()` factories for server-side tool definitions
-- **Human-in-the-Loop** — Built-in approval store with TTL-based expiry, MCP approval flow, and tool-level approval policies
-- **Stream Normalization** — Converts LlamaStack SSE events into a clean, typed `NormalizedStreamEvent` union
-- **Guardrails** — Input and output validation for tool calls with configurable rules
-- **Context Overflow Resilience** — Automatic tool reduction and graceful error handling when hitting token limits
-- **Dynamic Instructions** — Static strings or async functions for runtime instruction resolution
-- **Lifecycle Hooks** — `onRunStart`, `onRunEnd`, `onTurnStart`, `onHandoff`, and per-agent hooks
-- **Resumable State** — `RunState` for serializing and resuming interrupted runs (HITL continuations)
-- **Zero External Dependencies** — Only Node.js built-ins at runtime (Zod is an optional peer dep)
+1. **[Agents](./examples/basic)**: LLMs configured with instructions, tools, guardrails, and handoffs
+2. **[Handoffs](./examples/multi-agent)**: Delegating to other agents via typed agent graphs with validation
+3. **[Tools](./examples/mcp-tools)**: Function tools, MCP tool integration, and hosted tool factories
+4. **[Guardrails](./packages/adk-core/src/guardrails)**: Configurable safety checks for input and output validation
+5. **[Human in the loop](./examples/human-in-the-loop)**: Built-in approval store with MCP approval flow
+6. **[Sessions](./packages/adk-core/src/session)**: Conversation history management across agent runs
+7. **[Tracing](./packages/adk-core/src/tracing)**: Built-in tracking of agent runs for debugging and optimization
+8. **[Streaming](./packages/adk-core/src/stream)**: SSE normalization for real-time token streaming
 
-## Quick Start
+Explore the [`examples/`](./examples) directory to see the SDK in action.
+
+## Get started
+
+### Supported environments
+
+- Node.js 18 or later
+- Any TypeScript runtime (Deno, Bun)
+
+### Installation
 
 ```bash
 npm install @augment-adk/augment-adk
 ```
+
+### Run your first agent
 
 ```typescript
 import { run, LlamaStackModel } from '@augment-adk/augment-adk';
@@ -63,278 +70,79 @@ const result = await run('What is the capital of France?', {
 console.log(result.content);
 ```
 
-## Using with OpenAI-Compatible Backends
+### Using with OpenAI-compatible backends
 
-Use `ChatCompletionsModel` to connect to any provider that implements the Chat Completions API (OpenAI, Ollama, vLLM, etc.):
+Use `ChatCompletionsModel` to connect to OpenAI, Ollama, vLLM, LiteLLM, or any provider implementing `/v1/chat/completions`:
 
 ```typescript
 import { run, ChatCompletionsModel } from '@augment-adk/augment-adk';
 
 const model = new ChatCompletionsModel({
   clientConfig: {
-    baseUrl: 'http://localhost:11434', // Ollama, vLLM, etc.
+    baseUrl: 'http://localhost:11434',
     token: process.env.API_KEY,
   },
 });
-
-const result = await run('Explain Kubernetes pods', {
-  model,
-  agents: {
-    assistant: {
-      name: 'Assistant',
-      instructions: 'You are a helpful DevOps expert.',
-    },
-  },
-  defaultAgent: 'assistant',
-  config: {
-    model: 'llama3.1',
-    baseUrl: 'http://localhost:11434',
-    systemPrompt: 'You are a helpful DevOps expert.',
-    enableWebSearch: false,
-    enableCodeInterpreter: false,
-    vectorStoreIds: [],
-    vectorStoreName: '',
-    embeddingModel: '',
-    embeddingDimension: 384,
-    chunkingStrategy: 'auto',
-    maxChunkSizeTokens: 800,
-    chunkOverlapTokens: 400,
-    skipTlsVerify: false,
-    zdrMode: false,
-    verboseStreamLogging: false,
-  },
-});
-
-console.log(result.content);
 ```
 
-## Architecture
-
-```
-@augment-adk/augment-adk
-├── src/
-│   ├── agent.ts              # Agent class
-│   ├── agentGraph.ts          # Multi-agent graph resolution & validation
-│   ├── handoff.ts             # Handoff tools & context filtering
-│   ├── hooks.ts               # Lifecycle hook interfaces
-│   ├── run.ts                 # Top-level public API
-│   ├── errors.ts              # Error hierarchy
-│   ├── logger.ts              # Framework-agnostic logger
-│   ├── types/                 # All TypeScript type definitions
-│   │   ├── agentConfig.ts     # Agent, tool, guardrail types
-│   │   ├── responsesApi.ts    # LlamaStack Responses API types
-│   │   ├── modelConfig.ts     # Model & MCP server config
-│   │   └── lifecycle.ts       # Lifecycle event types
-│   ├── model/                 # Model abstraction layer
-│   │   ├── model.ts           # Abstract Model interface
-│   │   ├── llamastack/        # LlamaStack Responses API
-│   │   │   ├── LlamaStackModel.ts
-│   │   │   ├── ResponsesApiClient.ts
-│   │   │   ├── requestBuilder.ts
-│   │   │   ├── streamParser.ts
-│   │   │   ├── serverCapabilities.ts
-│   │   │   └── errors.ts
-│   │   └── chatCompletions/   # OpenAI-compatible Chat Completions
-│   │       ├── ChatCompletionsModel.ts
-│   │       └── ChatCompletionsClient.ts
-│   ├── tools/                 # Tool system
-│   │   ├── tool.ts            # FunctionTool interface & factory
-│   │   ├── hostedTools.ts     # Web search & file search factories
-│   │   ├── hostedMcpTool.ts   # Hosted MCP tool factory
-│   │   ├── toolResolver.ts    # Fuzzy name matching
-│   │   ├── mcpTool.ts         # MCP tool manager
-│   │   ├── toolExecution.ts   # Tool dispatch & execution
-│   │   ├── toolNameUtils.ts   # Name sanitization utilities
-│   │   └── toolScopeProvider.ts # Optional semantic filtering
-│   ├── runner/                # Core orchestration engine
-│   │   ├── runLoop.ts         # Main agent loop
-│   │   ├── RunContext.ts      # Mutable run state
-│   │   ├── RunResult.ts       # Structured run output
-│   │   ├── RunState.ts        # Serializable/resumable state
-│   │   ├── outputClassifier.ts
-│   │   ├── turnPreparation.ts
-│   │   ├── turnExecution.ts
-│   │   ├── turnResolution.ts
-│   │   └── responseProcessor.ts
-│   ├── stream/                # SSE normalization
-│   │   ├── normalizer.ts
-│   │   ├── handlers.ts
-│   │   ├── events.ts
-│   │   ├── constants.ts
-│   │   └── errorSanitizer.ts
-│   ├── approval/              # HITL approval system
-│   │   ├── ApprovalStore.ts
-│   │   └── partitionByApproval.ts
-│   └── guardrails/            # Input/output validation
-│       ├── inputGuardrail.ts
-│       └── outputGuardrail.ts
-└── examples/
-    ├── basic/                 # Single-agent usage
-    ├── multi-agent/           # Router + specialists
-    ├── mcp-tools/             # MCP tool integration
-    └── human-in-the-loop/     # Approval workflows
-```
-
-## Multi-Agent Orchestration
-
-Define agent graphs with typed handoffs:
-
-```typescript
-import { run, LlamaStackModel } from '@augment-adk/augment-adk';
-
-const result = await run('How do I scale my deployment?', {
-  model,
-  agents: {
-    router: {
-      name: 'Router',
-      instructions: 'Route to engineer for cluster questions.',
-      handoffs: ['engineer'],
-    },
-    engineer: {
-      name: 'Engineer',
-      instructions: 'Expert in Kubernetes and infrastructure.',
-    },
-  },
-  defaultAgent: 'router',
-  config,
-});
-
-console.log(result.handoffPath); // ['router', 'engineer']
-```
-
-## MCP Tool Integration
-
-Connect to any MCP server for tool discovery and execution:
-
-```typescript
-import {
-  run,
-  MCPToolManager,
-  ToolResolver,
-} from '@augment-adk/augment-adk';
-
-const toolResolver = new ToolResolver(logger);
-const mcpToolManager = new MCPToolManager({
-  connectionFactory: createMcpConnection,
-  logger,
-});
-
-const result = await run('List all namespaces', {
-  model,
-  agents: { engineer: agentConfig },
-  defaultAgent: 'engineer',
-  config,
-  mcpServers: [{ id: 'ocp', name: 'OCP', type: 'streamable-http', url: mcpUrl }],
-  toolResolver,
-  mcpToolManager,
-});
-```
-
-## Human-in-the-Loop
-
-Require human approval for destructive operations:
-
-```typescript
-import { run, ApprovalStore } from '@augment-adk/augment-adk';
-
-const approvalStore = new ApprovalStore();
-
-const result = await run('Delete the staging namespace', {
-  model,
-  agents,
-  defaultAgent: 'engineer',
-  config,
-  mcpServers: [{
-    id: 'ocp',
-    name: 'OCP',
-    type: 'streamable-http',
-    url: mcpUrl,
-    requireApproval: 'always',
-  }],
-  approvalStore,
-});
-
-if (result.pendingApproval) {
-  console.log('Approval needed:', result.pendingApproval.toolName);
-  // Present to user, then resume with approved state
-}
-```
-
-## Guardrails
-
-Validate tool inputs and outputs:
-
-```typescript
-const agent = {
-  name: 'Safe Agent',
-  instructions: '...',
-  toolGuardrails: [
-    {
-      toolName: 'delete_*',
-      validation: 'block',
-      reason: 'Destructive operations require elevated permissions',
-    },
-  ],
-};
-```
-
-## Lifecycle Hooks
-
-Track execution at every level:
-
-```typescript
-const result = await run(question, {
-  // ...
-  hooks: {
-    onRunStart: () => console.log('Run started'),
-    onRunEnd: (r) => console.log('Run ended:', r),
-    onTurnStart: (turn, agent) => console.log(`Turn ${turn}: ${agent}`),
-    onHandoff: (from, to, reason) => console.log(`${from} → ${to}: ${reason}`),
-  },
-});
-```
+See the [chat-completions example](./examples/chat-completions) for a complete walkthrough.
 
 ## Examples
 
 | Example | Description |
 |---------|-------------|
 | [basic](./examples/basic) | Single-agent question answering |
-| [chat-completions](./examples/chat-completions) | OpenAI-compatible backend via ChatCompletionsModel |
-| [multi-agent](./examples/multi-agent) | Router + specialist agent graph |
-| [mcp-tools](./examples/mcp-tools) | MCP server tool calling |
-| [human-in-the-loop](./examples/human-in-the-loop) | Approval workflow |
+| [chat-completions](./examples/chat-completions) | OpenAI-compatible backend via `ChatCompletionsModel` |
+| [multi-agent](./examples/multi-agent) | Router + specialist agent graph with handoffs |
+| [mcp-tools](./examples/mcp-tools) | MCP server tool discovery and execution |
+| [human-in-the-loop](./examples/human-in-the-loop) | Approval workflows for destructive operations |
 
-## Comparison with OpenAI Agents SDK
+## Packages
 
-| Feature | OpenAI Agents SDK | Augment ADK |
-|---------|-------------------|-------------|
-| Backend | OpenAI API | LlamaStack + any OpenAI-compatible API |
-| Multi-agent | Agent handoffs | Agent handoffs + graph validation |
-| Tools | Function tools, hosted tools, MCP | Function tools, hosted tools, MCP + fuzzy resolution |
-| HITL | — | Built-in approval store + MCP approval flow |
-| Guardrails | Input/output guardrails | Input/output guardrails |
-| Streaming | OpenAI SSE | LlamaStack SSE normalization |
-| State | — | Serializable RunState with approval persistence |
-| Dependencies | openai SDK | Zero runtime dependencies (Zod optional) |
+The SDK is organized as a monorepo with focused packages:
+
+| Package | Description |
+|---------|-------------|
+| [`@augment-adk/augment-adk`](./packages/augment-adk) | Batteries-included entry point — re-exports everything |
+| [`@augment-adk/adk-core`](./packages/adk-core) | Provider-agnostic core: agents, runner, tools, guardrails, approval, streaming, tracing |
+| [`@augment-adk/adk-llamastack`](./packages/adk-llamastack) | LlamaStack Responses API model provider |
+| [`@augment-adk/adk-openai-compat`](./packages/adk-openai-compat) | OpenAI-compatible Chat Completions model provider |
+
+Most users should install `@augment-adk/augment-adk`. Advanced consumers can import individual packages for lighter bundles:
+
+```typescript
+import { run, Agent } from '@augment-adk/adk-core';
+import { LlamaStackModel } from '@augment-adk/adk-llamastack';
+```
 
 ## Development
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
-# Build
-npm run build
+# Build all packages (in dependency order)
+pnpm -r build
 
-# Run tests
-npm test
+# Run all tests
+pnpm -r test
 
-# Type-check
-npm run typecheck
+# Type-check all packages
+pnpm -r typecheck
 
 # Lint
-npm run lint
+pnpm -r lint
 ```
+
+## Acknowledgements
+
+We'd like to acknowledge the excellent work of the open-source community, especially:
+
+- [OpenAI Agents JS SDK](https://github.com/openai/openai-agents-js) (architectural inspiration)
+- [LlamaStack](https://github.com/meta-llama/llama-stack) (Responses API backend)
+- [zod](https://github.com/colinhacks/zod) (optional schema validation)
+- [vitest](https://github.com/vitest-dev/vitest) and [tsup](https://github.com/egoist/tsup)
+- [pnpm](https://pnpm.io/)
 
 ## License
 

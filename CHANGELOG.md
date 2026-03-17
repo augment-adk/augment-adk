@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Monorepo restructure** — Split the single `@augment-adk/augment-adk` package into four:
+  - `@augment-adk/adk-core` — Provider-agnostic agent orchestration (Agent, Runner, Tools, Guardrails, Approval, Stream, Tracing)
+  - `@augment-adk/adk-llamastack` — LlamaStack Responses API provider (LlamaStackModel, ResponsesApiClient)
+  - `@augment-adk/adk-openai-compat` — OpenAI-compatible Chat Completions provider (ChatCompletionsModel, ChatCompletionsClient)
+  - `@augment-adk/augment-adk` — Batteries-included entry package that re-exports all sub-packages
+- **Tests reorganized** — All `*.test.ts` files moved from `src/` to `__tests__/` directories mirroring source structure
+- **Agent files grouped** — `agent.ts`, `agentGraph.ts`, `handoff.ts` moved into `src/agent/` subdirectory in adk-core
+- **Model interface separated** — `model.ts` (interface-only) placed at root of adk-core, independent of any provider
+
+### Backward Compatibility
+
+The `@augment-adk/augment-adk` package continues to export every symbol from v0.2.0. All existing imports work unchanged. The v0.1.0 backward compatibility test suite passes. New packages are additive — consumers can optionally import from sub-packages for lighter bundles.
+
 ## [0.2.0] - 2026-03-15
 
 ### Added

@@ -21,25 +21,23 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Install dependencies
-        run: npm ci
-        working-directory: packages/augment-adk
+      - name: Install pnpm
+        run: npm install -g pnpm
 
-      - name: Type check
-        run: npm run typecheck
-        working-directory: packages/augment-adk
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build all packages
+        run: pnpm -r build
+
+      - name: Type check all packages
+        run: pnpm -r typecheck
 
       - name: Lint
-        run: npm run lint
-        working-directory: packages/augment-adk
+        run: pnpm -r lint
 
-      - name: Build
-        run: npm run build
-        working-directory: packages/augment-adk
-
-      - name: Test
-        run: npm test
-        working-directory: packages/augment-adk
+      - name: Test all packages
+        run: pnpm -r test
 
   publish:
     needs: build-and-test
@@ -58,13 +56,14 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - name: Install dependencies
-        run: npm ci
-        working-directory: packages/augment-adk
+      - name: Install pnpm
+        run: npm install -g pnpm
 
-      - name: Build
-        run: npm run build
-        working-directory: packages/augment-adk
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build all packages
+        run: pnpm -r build
 
       - name: Bump version and publish
         working-directory: packages/augment-adk
