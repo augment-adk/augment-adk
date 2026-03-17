@@ -35,7 +35,7 @@ describe('buildTurnRequest', () => {
     expect(result.instructions).toBe('Be helpful');
     expect(result.tools).toBeUndefined();
     expect(result.store).toBe(true);
-    expect(result.include).toBeDefined();
+    expect(result.include).toBeUndefined();
   });
 
   it('includes tools when provided', () => {

@@ -2,36 +2,13 @@ import type { EffectiveConfig, CapabilityInfo } from '@augment-adk/adk-core';
 import type { ResponsesApiInputItem, ResponsesApiTool } from '@augment-adk/adk-core';
 import { isParamSupported } from './serverCapabilities';
 
-const DEFAULT_INCLUDE_FIELDS = [
-  'output[*].content[*].annotations',
-  'output[*].content[*].text',
-  'output[*].id',
-  'output[*].role',
-  'output[*].status',
-  'output[*].type',
-  'output[*].name',
-  'output[*].arguments',
-  'output[*].call_id',
-  'output[*].output',
-  'output[*].queries',
-  'output[*].results',
-  'output[*].server_label',
-  'output[*].error',
-  'output[*].summary',
-  'output[*].encrypted_content',
-  'usage',
-];
-
-const ZDR_INCLUDE_FIELDS = [
-  ...DEFAULT_INCLUDE_FIELDS,
-  'output[*].encrypted_content',
-];
-
 export interface BuildRequestOptions {
   previousResponseId?: string;
   conversationId?: string;
   stream?: boolean;
   store?: boolean;
+  /** Optional list of include field selectors for the response. */
+  include?: string[];
 }
 
 /**
@@ -52,15 +29,17 @@ export function buildTurnRequest(
 ): Record<string, unknown> {
   const isZdrMode = config.zdrMode === true;
   const storeValue = options?.store ?? !isZdrMode;
-  const includeFields = isZdrMode ? ZDR_INCLUDE_FIELDS : DEFAULT_INCLUDE_FIELDS;
 
   const request: Record<string, unknown> = {
     input,
     model: config.model,
     tools: tools.length > 0 ? tools : undefined,
     store: storeValue,
-    include: includeFields,
   };
+
+  if (options?.include && options.include.length > 0) {
+    request.include = options.include;
+  }
 
   if (config.promptRef) {
     const prompt: Record<string, unknown> = { id: config.promptRef.id };
