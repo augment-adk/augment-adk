@@ -1,99 +1,39 @@
 /**
- * MCP tools example with backend-executed tool calls.
+ * MCP tools example — function tools and hosted MCP tool factories.
  *
- * Demonstrates:
- * - MCPToolManager for discovering and executing MCP tools
- * - ToolResolver with fuzzy name matching
- * - Tool output truncation
+ * Demonstrates two tool integration patterns:
  *
- * Run: npx tsx examples/mcp-tools/index.ts
+ * 1. **Function tools**: Local tools defined with `tool()` that execute
+ *    in the ADK process. This is the same pattern used by the Backstage
+ *    plugin's BackendToolExecutor, which discovers MCP tools and wraps
+ *    them as function tools with remote execute handlers.
+ *
+ * 2. **Hosted MCP tools**: Declared via `hostedMcpTool()` so the
+ *    LlamaStack server connects to the MCP server directly.
+ *
+ * Run:
+ *   LLAMA_STACK_URL=https://your-server.com npx tsx examples/mcp-tools/index.ts
  */
+// Published package: import { ... } from '@augment-adk/augment-adk';
 import {
   run,
+  runStream,
+  tool,
+  hostedMcpTool,
   LlamaStackModel,
-  ToolResolver,
-  MCPToolManager,
   type AgentConfig,
   type EffectiveConfig,
-  type MCPConnection,
-  type MCPServerConfig,
-} from '@augment-adk/augment-adk';
+  type RunStreamEvent,
+} from '../../packages/augment-adk/src/index';
 
-const LLAMA_STACK_URL = process.env.LLAMA_STACK_URL || 'http://localhost:8321';
-const MODEL = process.env.MODEL || 'meta-llama/Llama-3.1-8B-Instruct';
-const MCP_SERVER_URL = process.env.MCP_SERVER_URL || 'http://localhost:3001/mcp';
+const BASE_URL = process.env.LLAMA_STACK_URL || 'http://localhost:8321';
+const MODEL = process.env.MODEL || 'gemini/models/gemini-2.0-flash';
 
-const consoleLogger = {
-  info: (msg: string) => console.log(`[INFO] ${msg}`),
-  warn: (msg: string) => console.warn(`[WARN] ${msg}`),
-  error: (msg: string) => console.error(`[ERROR] ${msg}`),
-  debug: (msg: string) => console.debug(`[DEBUG] ${msg}`),
-};
-
-/**
- * Example MCP connection factory.
- * In production, use the @modelcontextprotocol/sdk Client.
- */
-async function createMcpConnection(
-  server: MCPServerConfig,
-): Promise<MCPConnection> {
-  // This is a placeholder — replace with actual MCP SDK connection
+function makeConfig(): EffectiveConfig {
   return {
-    async listTools() {
-      return [
-        {
-          name: 'get_weather',
-          description: 'Get current weather for a city',
-          inputSchema: {
-            type: 'object',
-            properties: { city: { type: 'string' } },
-            required: ['city'],
-          },
-        },
-      ];
-    },
-    async callTool(name: string, args: Record<string, unknown>) {
-      return {
-        content: [
-          { type: 'text', text: `Weather in ${args.city}: Sunny, 22°C` },
-        ],
-      };
-    },
-    async close() {},
-  };
-}
-
-async function main() {
-  const model = new LlamaStackModel({
-    clientConfig: { baseUrl: LLAMA_STACK_URL, skipTlsVerify: true },
-    logger: consoleLogger,
-  });
-
-  const toolResolver = new ToolResolver(consoleLogger);
-  const mcpToolManager = new MCPToolManager({
-    connectionFactory: createMcpConnection,
-    logger: consoleLogger,
-  });
-
-  const mcpServers: MCPServerConfig[] = [
-    {
-      id: 'weather',
-      name: 'Weather Server',
-      type: 'streamable-http',
-      url: MCP_SERVER_URL,
-    },
-  ];
-
-  const agent: AgentConfig = {
-    name: 'Weather Assistant',
-    instructions: 'You help users check the weather. Use the get_weather tool.',
-    mcpServers: ['weather'],
-  };
-
-  const config: EffectiveConfig = {
     model: MODEL,
-    baseUrl: LLAMA_STACK_URL,
-    systemPrompt: agent.instructions,
+    baseUrl: BASE_URL,
+    systemPrompt: '',
     enableWebSearch: false,
     enableCodeInterpreter: false,
     vectorStoreIds: [],
@@ -107,22 +47,137 @@ async function main() {
     zdrMode: false,
     verboseStreamLogging: false,
   };
-
-  const result = await run("What's the weather in Paris?", {
-    model,
-    agents: { assistant: agent },
-    defaultAgent: 'assistant',
-    config,
-    mcpServers,
-    toolResolver,
-    mcpToolManager,
-    logger: consoleLogger,
-  });
-
-  console.log('Response:', result.content);
-  if (result.toolCalls) {
-    console.log('Tool calls:', result.toolCalls.map(t => t.name));
-  }
 }
 
-main().catch(console.error);
+// =============================================================================
+// Pattern 1: Function tools (local execution)
+// =============================================================================
+
+const getNamespaces = tool<{ cluster?: string }>({
+  name: 'list_namespaces',
+  description: 'List all Kubernetes namespaces in a cluster.',
+  parameters: {
+    type: 'object',
+    properties: {
+      cluster: { type: 'string', description: 'Cluster name (optional)' },
+    },
+  },
+  execute: async ({ cluster }) => {
+    // In a real app this would call the K8s API
+    const ns = ['default', 'kube-system', 'monitoring', 'app-staging', 'app-prod'];
+    return JSON.stringify({
+      cluster: cluster ?? 'default',
+      namespaces: ns,
+      count: ns.length,
+    });
+  },
+});
+
+const getPodCount = tool<{ namespace: string }>({
+  name: 'get_pod_count',
+  description: 'Get the number of running pods in a namespace.',
+  parameters: {
+    type: 'object',
+    properties: {
+      namespace: { type: 'string', description: 'Kubernetes namespace' },
+    },
+    required: ['namespace'],
+  },
+  execute: async ({ namespace }) => {
+    const counts: Record<string, number> = {
+      'default': 3, 'kube-system': 12, 'monitoring': 8,
+      'app-staging': 5, 'app-prod': 15,
+    };
+    return JSON.stringify({
+      namespace,
+      podCount: counts[namespace] ?? 0,
+      status: 'healthy',
+    });
+  },
+});
+
+// =============================================================================
+// Pattern 2: Hosted MCP tool (server-side execution)
+// =============================================================================
+
+// This declares an MCP tool that the LlamaStack server connects to directly.
+// Useful when the MCP server is network-accessible from the LlamaStack server.
+const githubMcpTool = hostedMcpTool({
+  serverLabel: 'github',
+  serverUrl: process.env.GITHUB_MCP_URL || 'https://github-mcp.example.com/sse',
+  requireApproval: 'never',
+});
+
+// =============================================================================
+// Demo
+// =============================================================================
+
+async function main() {
+  const model = new LlamaStackModel({
+    clientConfig: { baseUrl: BASE_URL, skipTlsVerify: true },
+  });
+
+  const conn = await model.testConnection();
+  if (!conn.connected) {
+    console.error(`Cannot connect to ${BASE_URL}: ${conn.error}`);
+    process.exit(1);
+  }
+  console.log(`Connected to ${BASE_URL}\n`);
+
+  // --- Demo: Function tools with streaming ---
+  console.log('--- Function Tools (streaming) ---');
+
+  const k8sAgent: AgentConfig = {
+    name: 'K8sAssistant',
+    instructions:
+      'You are a Kubernetes assistant. Use the available tools to answer questions ' +
+      'about clusters, namespaces, and pods. Always use tools before answering.',
+  };
+
+  const streamed = runStream(
+    'How many pods are running in the monitoring namespace?',
+    {
+      model,
+      agents: { k8s: k8sAgent },
+      defaultAgent: 'k8s',
+      config: makeConfig(),
+      functionTools: [getNamespaces, getPodCount],
+    },
+  );
+
+  for await (const event of streamed) {
+    switch (event.type) {
+      case 'tool_called':
+        console.log(`  [tool] Calling ${event.toolName}(${event.arguments})`);
+        break;
+      case 'tool_output':
+        console.log(`  [tool] ${event.toolName} → ${event.output}`);
+        break;
+      case 'text_delta':
+        process.stdout.write(event.delta);
+        break;
+      default:
+        break;
+    }
+  }
+
+  const result = streamed.result;
+  console.log(`\n\nAgent: ${result.agentName}`);
+  if (result.toolCalls?.length) {
+    console.log(`Tools used: ${result.toolCalls.map(t => t.name).join(', ')}`);
+  }
+
+  // --- Note about hosted MCP tools ---
+  console.log('\n--- Hosted MCP Tool (declaration only) ---');
+  console.log('Hosted MCP tool definition (passed to LlamaStack server):');
+  console.log(JSON.stringify(githubMcpTool, null, 2));
+  console.log(
+    '\nTo use hosted MCP tools, pass them in the config or as tools[] in the ' +
+    'Responses API request. The LlamaStack server connects to the MCP server directly.',
+  );
+}
+
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

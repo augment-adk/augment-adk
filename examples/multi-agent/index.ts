@@ -1,57 +1,27 @@
 /**
- * Multi-agent example with a Router + two specialist agents.
+ * Multi-agent handoff example.
  *
- * Demonstrates:
- * - Agent graph with handoffs
- * - Lifecycle event hooks
- * - Per-agent model/temperature overrides
+ * Demonstrates a triage agent that routes user requests to
+ * specialist agents (engineer or writer) based on the question type.
  *
- * Run: npx tsx examples/multi-agent/index.ts
+ * Run:
+ *   LLAMA_STACK_URL=https://your-server.com npx tsx examples/multi-agent/index.ts
  */
+// Published package: import { run, LlamaStackModel, ... } from '@augment-adk/augment-adk';
 import {
   run,
   LlamaStackModel,
   type AgentConfig,
   type EffectiveConfig,
-  type AgentHooks,
-} from '@augment-adk/augment-adk';
+} from '../../packages/augment-adk/src/index';
 
-const LLAMA_STACK_URL = process.env.LLAMA_STACK_URL || 'http://localhost:8321';
-const MODEL = process.env.MODEL || 'meta-llama/Llama-3.1-8B-Instruct';
+const BASE_URL = process.env.LLAMA_STACK_URL || 'http://localhost:8321';
+const MODEL = process.env.MODEL || 'gemini/models/gemini-2.0-flash';
 
-const agents: Record<string, AgentConfig> = {
-  router: {
-    name: 'Router',
-    instructions: `You are a triage agent. Analyze the user's question and route to:
-- "engineer" for infrastructure, Kubernetes, and cluster questions
-- "analyst" for data analysis, metrics, and reporting questions
-Always hand off — never answer directly.`,
-    handoffs: ['engineer', 'analyst'],
-    temperature: 0.1,
-    handoffDescription: 'Routes questions to specialist agents',
-  },
-  engineer: {
-    name: 'Cluster Engineer',
-    instructions: 'You are a Kubernetes and infrastructure expert. Provide detailed technical answers.',
-    handoffDescription: 'Handles infrastructure, Kubernetes, and cluster operations',
-    temperature: 0.3,
-  },
-  analyst: {
-    name: 'Data Analyst',
-    instructions: 'You are a data analysis expert. Provide insights based on metrics and data.',
-    handoffDescription: 'Handles data analysis, metrics, and reporting',
-    temperature: 0.5,
-  },
-};
-
-async function main() {
-  const model = new LlamaStackModel({
-    clientConfig: { baseUrl: LLAMA_STACK_URL, skipTlsVerify: true },
-  });
-
-  const config: EffectiveConfig = {
+function makeConfig(): EffectiveConfig {
+  return {
     model: MODEL,
-    baseUrl: LLAMA_STACK_URL,
+    baseUrl: BASE_URL,
     systemPrompt: '',
     enableWebSearch: false,
     enableCodeInterpreter: false,
@@ -65,25 +35,78 @@ async function main() {
     skipTlsVerify: true,
     zdrMode: false,
     verboseStreamLogging: false,
-    maxAgentTurns: 10,
   };
-
-  const result = await run('How many nodes are in my Kubernetes cluster?', {
-    model,
-    agents,
-    defaultAgent: 'router',
-    config,
-    hooks: {
-      onRunStart: () => console.log('--- Run started ---'),
-      onRunEnd: (result) => console.log(`--- Run ended: ${result} ---`),
-      onTurnStart: (turn, agentKey) =>
-        console.log(`  Turn ${turn}: ${agentKey}`),
-    },
-  });
-
-  console.log('\nAgent:', result.agentName);
-  console.log('Handoff Path:', result.handoffPath?.join(' → ') ?? 'direct');
-  console.log('Response:', result.content);
 }
 
-main().catch(console.error);
+const triage: AgentConfig = {
+  name: 'Triage',
+  instructions:
+    'You are a triage agent. Route the user to the correct specialist:\n' +
+    '- For infrastructure, DevOps, Kubernetes, or coding questions: hand off to engineer\n' +
+    '- For writing, documentation, or creative tasks: hand off to writer\n' +
+    'Never answer questions yourself. Always hand off.',
+  handoffs: ['engineer', 'writer'],
+};
+
+const engineer: AgentConfig = {
+  name: 'Engineer',
+  instructions:
+    'You are a senior platform engineer. Answer infrastructure, Kubernetes, ' +
+    'and DevOps questions concisely in 2-3 sentences.',
+  handoffDescription: 'Handles infrastructure, DevOps, Kubernetes, and coding questions.',
+};
+
+const writer: AgentConfig = {
+  name: 'Writer',
+  instructions:
+    'You are a technical writer. Help with documentation, README files, ' +
+    'and creative writing tasks. Be concise.',
+  handoffDescription: 'Handles documentation, writing, and creative tasks.',
+};
+
+async function main() {
+  const model = new LlamaStackModel({
+    clientConfig: { baseUrl: BASE_URL, skipTlsVerify: true },
+  });
+
+  const conn = await model.testConnection();
+  if (!conn.connected) {
+    console.error(`Cannot connect to ${BASE_URL}: ${conn.error}`);
+    process.exit(1);
+  }
+  console.log(`Connected to ${BASE_URL}\n`);
+
+  const agents = { triage, engineer, writer };
+  const config = makeConfig();
+
+  // --- Question 1: Should route to engineer ---
+  console.log('--- Question 1: Infrastructure ---');
+  const q1 = await run('How do I set up a Kubernetes namespace with resource quotas?', {
+    model,
+    agents,
+    defaultAgent: 'triage',
+    config,
+  });
+
+  console.log(`Final agent:  ${q1.agentName}`);
+  console.log(`Handoff path: ${q1.handoffPath?.join(' → ') ?? 'none'}`);
+  console.log(`Response:     ${q1.content}\n`);
+
+  // --- Question 2: Should route to writer ---
+  console.log('--- Question 2: Documentation ---');
+  const q2 = await run('Write a one-paragraph README intro for a CLI tool called "kube-lint".', {
+    model,
+    agents,
+    defaultAgent: 'triage',
+    config,
+  });
+
+  console.log(`Final agent:  ${q2.agentName}`);
+  console.log(`Handoff path: ${q2.handoffPath?.join(' → ') ?? 'none'}`);
+  console.log(`Response:     ${q2.content}`);
+}
+
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

@@ -94,8 +94,9 @@ See the [chat-completions example](./examples/chat-completions) for a complete w
 | [basic](./examples/basic) | Single-agent question answering |
 | [chat-completions](./examples/chat-completions) | OpenAI-compatible backend via `ChatCompletionsModel` |
 | [multi-agent](./examples/multi-agent) | Router + specialist agent graph with handoffs |
-| [mcp-tools](./examples/mcp-tools) | MCP server tool discovery and execution |
+| [mcp-tools](./examples/mcp-tools) | Function tools and hosted MCP tool integration |
 | [human-in-the-loop](./examples/human-in-the-loop) | Approval workflows for destructive operations |
+| [backstage-plugin](./examples/backstage-plugin) | Integrating ADK into a Backstage backend plugin |
 
 ## Packages
 
