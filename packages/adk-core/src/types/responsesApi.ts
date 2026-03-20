@@ -27,12 +27,13 @@ export interface ResponsesApiMcpCall {
 }
 
 export interface ResponsesApiAnnotation {
-  type: 'file_citation' | 'url_citation' | 'file_path';
+  type: 'file_citation' | 'url_citation' | 'file_path' | 'container_file_citation';
   start_index?: number;
   end_index?: number;
   file_citation?: { file_id: string; filename?: string; quote?: string };
   url_citation?: { url: string; title?: string };
   file_path?: { file_id: string };
+  container_file_citation?: { file_id: string; container_id: string };
   [key: string]: unknown;
 }
 
@@ -73,12 +74,18 @@ export interface ResponsesApiReasoningItem {
   status?: 'completed' | 'in_progress';
 }
 
+export interface ResponsesApiWebSearchCall {
+  type: 'web_search_call';
+  id: string;
+  status: 'completed' | 'searching' | 'failed' | 'in_progress';
+}
+
 export interface ResponsesApiMcpApprovalRequest {
   type: 'mcp_approval_request';
   id: string;
   server_label: string;
-  method: string;
-  params?: Record<string, unknown>;
+  name: string;
+  arguments?: string;
 }
 
 export interface ResponsesApiMcpListTools {
@@ -95,7 +102,7 @@ export type ResponsesApiOutputEvent =
   | ResponsesApiMcpListTools
   | ResponsesApiMessage
   | ResponsesApiFunctionCall
-  | ResponsesApiFunctionCallOutput
+  | ResponsesApiWebSearchCall
   | ResponsesApiReasoningItem;
 
 // ============================================================================
@@ -111,7 +118,7 @@ export interface ResponseInputContent {
 export interface FunctionCallOutputItem {
   type: 'function_call_output';
   call_id: string;
-  output: string | ResponseInputContent[];
+  output: string;
 }
 
 export interface MessageInputItem {
@@ -151,10 +158,11 @@ export interface ResponsesApiFileSearchTool {
 
 export interface ResponsesApiMcpTool {
   type: 'mcp';
-  server_url: string;
+  server_url?: string;
   server_label: string;
   require_approval: 'never' | 'always' | { always?: string[]; never?: string[] };
   headers?: Record<string, string>;
+  authorization?: string;
   allowed_tools?: string[];
   /** LlamaStack connector ID for server-side MCP routing. */
   connector_id?: string;
@@ -163,7 +171,7 @@ export interface ResponsesApiMcpTool {
 export interface ResponsesApiFunctionTool {
   type: 'function';
   name: string;
-  description: string;
+  description?: string;
   parameters: Record<string, unknown>;
   strict?: boolean;
 }

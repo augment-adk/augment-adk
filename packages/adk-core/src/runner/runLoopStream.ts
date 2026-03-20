@@ -17,7 +17,7 @@ import {
 import { promptWithHandoffInstructions } from '../agent/handoff';
 import {
   mergeAccumulatedToolCalls,
-} from './turnResolution';
+} from './turnPolicy';
 import { processResponse } from './responseProcessor';
 import {
   AgentNotFoundError,

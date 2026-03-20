@@ -27,8 +27,8 @@ export interface RunState {
   pendingMcpApprovals?: Array<{
     approvalRequestId: string;
     serverLabel: string;
-    method: string;
-    params?: Record<string, unknown>;
+    name: string;
+    arguments?: string;
   }>;
 }
 

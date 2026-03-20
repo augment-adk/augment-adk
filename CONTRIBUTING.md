@@ -11,50 +11,64 @@ git clone https://github.com/augment-adk/augment-adk.git
 cd augment-adk
 ```
 
-2. **Install dependencies**
+2. **Install dependencies** (this is a pnpm monorepo)
 
 ```bash
-npm install
+pnpm install
 ```
 
-3. **Build the project**
+3. **Build all packages**
 
 ```bash
-cd packages/augment-adk
-npm run build
+pnpm -r build
 ```
 
 4. **Run tests**
 
 ```bash
-npm test
+pnpm -r test
 ```
 
 ## Project Structure
 
+This is a pnpm monorepo with four packages:
+
 ```
-packages/augment-adk/
-  src/
-    types/        # TypeScript type definitions
-    model/        # Model abstraction + LlamaStack implementation
-    tools/        # Tool system (FunctionTool, MCP, resolver)
-    runner/       # Core orchestration engine
-    stream/       # SSE normalization
-    approval/     # HITL approval system
-    guardrails/   # Input/output validation
-    agent.ts      # Agent class
-    agentGraph.ts # Multi-agent graph
-    handoff.ts    # Handoff mechanics
-    hooks.ts      # Lifecycle hooks
-    run.ts        # Public API entry point
-    errors.ts     # Error hierarchy
-    logger.ts     # Logger interface
-    index.ts      # Barrel exports
+packages/
+  adk-core/                  Provider-agnostic orchestration engine (0 runtime deps)
+    src/
+      agent/                 Agent config, graph resolution, handoff logic
+      approval/              ApprovalStore, partitionByApproval
+      guardrails/            Input and output guardrail evaluation
+      runner/                Run loop, streaming loop, context, state, retry
+      session/               Session interface and implementations
+      stream/                SSE normalization, event handlers, accumulator
+      tools/                 Tool resolution, MCP, function tools, scoping
+      tracing/               Span/Trace providers, batch processor
+      types/                 AgentConfig, EffectiveConfig, Responses API types
+    __tests__/               Unit tests (mirrors src/ structure)
+
+  adk-llamastack/            LlamaStack Responses API provider
+    src/
+      LlamaStackModel.ts     Model implementation
+      ResponsesApiClient.ts  HTTP/SSE client
+      requestBuilder.ts      Request construction
+      streamParser.ts        SSE stream parsing
+
+  adk-chat-completions/      Chat Completions API adapter (optional, separate install)
+    src/
+      ChatCompletionsModel.ts    Model for /v1/chat/completions
+      ChatCompletionsClient.ts   HTTP client
+
+  augment-adk/               Umbrella package (re-exports adk-core + adk-llamastack)
+
 examples/
   basic/              # Single-agent
+  chat-completions/   # OpenAI-compatible backend
   multi-agent/        # Router + specialists
   mcp-tools/          # MCP integration
   human-in-the-loop/  # Approval workflows
+  backstage-plugin/   # Reference architecture for Backstage
 ```
 
 ## Code Standards
@@ -83,12 +97,12 @@ Every file should have a **single responsibility**. If a file is growing beyond 
 ### Testing
 
 - Write unit tests with Vitest
-- Co-locate test files next to source (`foo.test.ts` beside `foo.ts`)
+- Place tests in `__tests__/` directories that mirror the `src/` structure
 - Mock external dependencies (HTTP, MCP connections) at the boundary
 
-### No Runtime Dependencies
+### No Runtime Dependencies in Core
 
-The ADK has **zero** runtime npm dependencies. Only Node.js built-ins are allowed. Dev dependencies (tsup, vitest, typescript, eslint) are fine.
+The core package (`@augment-adk/adk-core`) has **zero** runtime npm dependencies. Only Node.js built-ins are allowed. Provider packages (`adk-llamastack`, `adk-chat-completions`) depend on `adk-core` via workspace references. Dev dependencies (tsup, vitest, typescript, eslint) are fine.
 
 ## Pull Request Process
 
@@ -98,10 +112,10 @@ The ADK has **zero** runtime npm dependencies. Only Node.js built-ins are allowe
 4. Run the full check suite:
 
 ```bash
-npm run typecheck
-npm run lint
-npm test
-npm run build
+pnpm -r typecheck
+pnpm -r lint
+pnpm -r test
+pnpm -r build
 ```
 
 5. Write a clear PR description explaining the "why" behind your changes

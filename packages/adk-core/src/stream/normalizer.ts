@@ -14,7 +14,7 @@ import {
 } from './handlers';
 
 /**
- * Normalize a single raw LlamaStack SSE event JSON string into zero or
+ * Normalize a single raw Responses API SSE event JSON string into zero or
  * more NormalizedStreamEvents.
  *
  * Returns an array because some raw events map to multiple normalized
@@ -23,7 +23,7 @@ import {
  *
  * This is a pure function with no side effects.
  */
-export function normalizeLlamaStackEvent(
+export function normalizeResponsesApiEvent(
   rawJson: string,
   onUnknownEvent?: (type: string) => void,
 ): NormalizedStreamEvent[] {
@@ -145,3 +145,6 @@ export function normalizeLlamaStackEvent(
       return [];
   }
 }
+
+/** @deprecated Use normalizeResponsesApiEvent instead. */
+export const normalizeLlamaStackEvent = normalizeResponsesApiEvent;

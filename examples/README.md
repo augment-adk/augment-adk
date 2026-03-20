@@ -12,7 +12,7 @@ LLAMA_STACK_URL=https://your-server.com \
   MODEL=gemini/models/gemini-2.0-flash \
   npx tsx examples/basic/index.ts
 
-# Chat completions examples (OpenAI-compatible)
+# Chat completions examples (requires @augment-adk/adk-chat-completions)
 OPENAI_BASE_URL=http://localhost:11434 \
   MODEL=llama3.1 \
   npx tsx examples/chat-completions/index.ts
@@ -23,7 +23,7 @@ OPENAI_BASE_URL=http://localhost:11434 \
 | Example | Model Provider | Description |
 |---------|---------------|-------------|
 | [basic](./basic) | LlamaStack | Single-agent question answering with `LlamaStackModel` |
-| [chat-completions](./chat-completions) | OpenAI-compat | Same pattern using `ChatCompletionsModel` (Ollama, OpenAI, vLLM) |
+| [chat-completions](./chat-completions) | Chat Completions (optional) | Same pattern using `ChatCompletionsModel` (Ollama, vLLM, OpenAI) |
 | [multi-agent](./multi-agent) | LlamaStack | Triage agent routing to specialist agents via handoffs |
 | [mcp-tools](./mcp-tools) | LlamaStack | Function tools (local) and hosted MCP tools (server-side) |
 | [human-in-the-loop](./human-in-the-loop) | LlamaStack | Streaming event detection, approval store, and resume pattern |
@@ -37,7 +37,7 @@ The simplest possible ADK usage: one agent, one question, one answer. Start here
 
 ### [chat-completions](./chat-completions)
 
-Same as basic, but uses `ChatCompletionsModel` to connect to any backend that implements OpenAI's `/v1/chat/completions` endpoint (Ollama, OpenAI, vLLM, LiteLLM).
+Same as basic, but uses `ChatCompletionsModel` from the optional `@augment-adk/adk-chat-completions` package to connect to any backend that implements the `/v1/chat/completions` endpoint (Ollama, vLLM, LiteLLM, OpenAI).
 
 ### [multi-agent](./multi-agent)
 

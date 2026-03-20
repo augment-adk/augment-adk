@@ -3,6 +3,7 @@ import * as https from 'https';
 import type { ILogger } from '@augment-adk/adk-core';
 import { toErrorMessage } from '@augment-adk/adk-core';
 import { ResponsesApiError } from './errors';
+import { splitSseBuffer } from './streamParser';
 
 const API_REQUEST_TIMEOUT_MS = 120_000;
 const STREAM_REQUEST_TIMEOUT_MS = 300_000;
@@ -134,7 +135,7 @@ export class ResponsesApiClient {
 
   private isRetryable(error: unknown): boolean {
     if (error instanceof ResponsesApiError) {
-      return [502, 503, 504].includes(error.statusCode);
+      return [429, 502, 503, 504].includes(error.statusCode);
     }
     if (error instanceof Error) {
       return /ECONNRESET|ECONNREFUSED|ETIMEDOUT|socket hang up/i.test(error.message);
@@ -192,22 +193,17 @@ export class ResponsesApiClient {
         let buffer = '';
         res.on('data', (chunk: Buffer) => {
           buffer += chunk.toString();
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6).trim();
-              if (data && data !== '[DONE]') {
-                onData(data);
-              }
-            }
+          const result = splitSseBuffer(buffer);
+          buffer = result.remaining;
+          for (const data of result.events) {
+            onData(data);
           }
         });
 
         res.on('end', () => {
-          if (buffer.startsWith('data: ')) {
-            const data = buffer.slice(6).trim();
-            if (data && data !== '[DONE]') {
+          if (buffer) {
+            const result = splitSseBuffer(buffer + '\n');
+            for (const data of result.events) {
               onData(data);
             }
           }

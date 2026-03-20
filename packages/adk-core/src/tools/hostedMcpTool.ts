@@ -6,6 +6,7 @@ export interface HostedMcpToolOptions {
   connectorId?: string;
   requireApproval?: 'never' | 'always' | { always?: string[]; never?: string[] };
   headers?: Record<string, string>;
+  authorization?: string;
   allowedTools?: string[];
 }
 
@@ -20,15 +21,20 @@ export function hostedMcpTool(options: HostedMcpToolOptions): ResponsesApiMcpToo
   const tool: ResponsesApiMcpTool = {
     type: 'mcp',
     server_label: options.serverLabel,
-    server_url: options.serverUrl ?? '',
     require_approval: options.requireApproval ?? 'never',
   };
 
+  if (options.serverUrl) {
+    tool.server_url = options.serverUrl;
+  }
   if (options.connectorId) {
-    (tool as ResponsesApiMcpTool).connector_id = options.connectorId;
+    tool.connector_id = options.connectorId;
   }
   if (options.headers) {
     tool.headers = options.headers;
+  }
+  if (options.authorization) {
+    tool.authorization = options.authorization;
   }
   if (options.allowedTools) {
     tool.allowed_tools = options.allowedTools;

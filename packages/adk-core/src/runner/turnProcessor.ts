@@ -29,7 +29,7 @@ import {
   evaluateToolUseBehavior,
   validateOutput,
   mergeAccumulatedToolCalls,
-} from './turnResolution';
+} from './turnPolicy';
 import { executeToolCalls } from '../tools/toolExecution';
 import { partitionByApproval } from '../approval/partitionByApproval';
 import {
@@ -431,9 +431,9 @@ export async function processTurnClassification(
       if (ctx.agentPath.length > 1) result.handoffPath = [...ctx.agentPath];
       result.pendingApproval = {
         approvalRequestId: classification.approvalRequestId,
-        toolName: classification.method,
+        toolName: classification.name,
         serverLabel: classification.serverLabel,
-        arguments: classification.params ? JSON.stringify(classification.params) : undefined,
+        arguments: classification.arguments,
       };
       emitter.approvalRequested?.(result.pendingApproval);
       return {

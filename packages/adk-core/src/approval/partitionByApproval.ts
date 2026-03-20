@@ -37,6 +37,19 @@ export function partitionByApproval(
       server.requireApproval === 'never'
     ) {
       approved.push(call);
+    } else if (server.requireApproval === 'always') {
+      needsApproval.push(call);
+    } else if (typeof server.requireApproval === 'object') {
+      const { always, never } = server.requireApproval;
+      const toolName = info.originalName ?? call.name;
+
+      if (never && never.includes(toolName)) {
+        approved.push(call);
+      } else if (always && always.includes(toolName)) {
+        needsApproval.push(call);
+      } else {
+        needsApproval.push(call);
+      }
     } else {
       needsApproval.push(call);
     }

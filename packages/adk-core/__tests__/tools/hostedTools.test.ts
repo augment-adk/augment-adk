@@ -74,7 +74,7 @@ describe('hostedMcpTool', () => {
       connectorId: 'conn_abc',
     });
     expect(tool.connector_id).toBe('conn_abc');
-    expect(tool.server_url).toBe('');
+    expect(tool.server_url).toBeUndefined();
   });
 
   it('passes require_approval setting', () => {

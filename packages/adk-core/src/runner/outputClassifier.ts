@@ -45,8 +45,8 @@ export class DefaultOutputClassifier implements OutputClassifierInterface {
         type: 'mcp_approval_request',
         approvalRequestId: mcpApprovalRequest.id,
         serverLabel: mcpApprovalRequest.server_label,
-        method: mcpApprovalRequest.method,
-        params: mcpApprovalRequest.params,
+        name: mcpApprovalRequest.name,
+        arguments: mcpApprovalRequest.arguments,
       };
     }
 

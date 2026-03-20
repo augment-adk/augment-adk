@@ -1,7 +1,7 @@
 {
-  "name": "@augment-adk/adk-openai-compat",
+  "name": "@augment-adk/adk-chat-completions",
   "version": "0.2.0",
-  "description": "OpenAI-compatible Chat Completions provider for the Augment Agent Development Kit",
+  "description": "Chat Completions API provider for the Augment Agent Development Kit (optional adapter for Ollama, vLLM, OpenAI, etc.)",
   "license": "Apache-2.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

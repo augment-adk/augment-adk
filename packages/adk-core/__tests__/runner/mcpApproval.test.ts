@@ -24,8 +24,8 @@ describe('MCP approval request classification', () => {
         type: 'mcp_approval_request',
         id: 'apr_123',
         server_label: 'ocp-mcp',
-        method: 'tools/call',
-        params: { name: 'delete_pod', arguments: { pod: 'test-pod' } },
+        name: 'delete_pod',
+        arguments: '{"pod":"test-pod"}',
       },
     ];
 
@@ -34,8 +34,8 @@ describe('MCP approval request classification', () => {
     if (result.type === 'mcp_approval_request') {
       expect(result.approvalRequestId).toBe('apr_123');
       expect(result.serverLabel).toBe('ocp-mcp');
-      expect(result.method).toBe('tools/call');
-      expect(result.params).toEqual({ name: 'delete_pod', arguments: { pod: 'test-pod' } });
+      expect(result.name).toBe('delete_pod');
+      expect(result.arguments).toBe('{"pod":"test-pod"}');
     }
   });
 
@@ -52,7 +52,7 @@ describe('MCP approval request classification', () => {
         type: 'mcp_approval_request',
         id: 'apr_456',
         server_label: 'test-server',
-        method: 'tools/call',
+        name: 'some_tool',
       },
     ];
 
@@ -150,8 +150,8 @@ describe('RunState serialization', () => {
       {
         approvalRequestId: 'apr_1',
         serverLabel: 'ocp-mcp',
-        method: 'tools/call',
-        params: { name: 'delete_ns' },
+        name: 'delete_ns',
+        arguments: '{}',
       },
     ];
 
@@ -160,7 +160,7 @@ describe('RunState serialization', () => {
 
     expect(restored.pendingMcpApprovals).toHaveLength(1);
     expect(restored.pendingMcpApprovals![0].approvalRequestId).toBe('apr_1');
-    expect(restored.pendingMcpApprovals![0].params).toEqual({ name: 'delete_ns' });
+    expect(restored.pendingMcpApprovals![0].name).toBe('delete_ns');
   });
 
   it('serializes to valid JSON string', () => {

@@ -1,17 +1,22 @@
 /**
- * ChatCompletionsModel example using any OpenAI-compatible backend.
+ * ChatCompletionsModel example using any Chat Completions backend.
  *
- * Works with OpenAI, Ollama, vLLM, LiteLLM, or any provider
+ * Works with Ollama, vLLM, LiteLLM, OpenAI, or any provider
  * that implements the /v1/chat/completions endpoint.
+ *
+ * Requires the optional @augment-adk/adk-chat-completions package.
  *
  * Run: npx tsx examples/chat-completions/index.ts
  */
+// Published packages:
+//   import { run, type AgentConfig, type EffectiveConfig } from '@augment-adk/augment-adk';
+//   import { ChatCompletionsModel } from '@augment-adk/adk-chat-completions';
 import {
   run,
-  ChatCompletionsModel,
   type AgentConfig,
   type EffectiveConfig,
-} from '@augment-adk/augment-adk';
+} from '../../packages/augment-adk/src/index';
+import { ChatCompletionsModel } from '../../packages/adk-chat-completions/src/index';
 
 const BASE_URL = process.env.OPENAI_BASE_URL || 'http://localhost:11434';
 const API_KEY = process.env.OPENAI_API_KEY;

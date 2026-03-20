@@ -105,8 +105,8 @@ export { runLoopStream, type StreamRunnerOptions } from './runner/runLoopStream'
 // Stream
 export type { NormalizedStreamEvent } from './stream/events';
 export type { RunStreamEvent } from './stream/runStreamEvents';
-export { LS_EVENT, IMMEDIATE_FORWARD_TYPES } from './stream/constants';
-export { normalizeLlamaStackEvent } from './stream/normalizer';
+export { LS_EVENT, RESPONSES_EVENT, IMMEDIATE_FORWARD_TYPES } from './stream/constants';
+export { normalizeResponsesApiEvent, normalizeLlamaStackEvent } from './stream/normalizer';
 export { sanitizeMcpError } from './stream/errorSanitizer';
 export { StreamAccumulator } from './stream/streamAccumulator';
 
@@ -206,6 +206,7 @@ export type {
   ResponseUsage,
   ResponsesApiMcpApprovalRequest,
   ResponsesApiMcpListTools,
+  ResponsesApiWebSearchCall,
   McpApprovalResponseItem,
 } from './types/responsesApi';
 export type {

@@ -297,7 +297,7 @@ export class ChatCompletionsModel implements Model {
           type: 'function',
           function: {
             name: ft.name,
-            description: ft.description,
+            description: ft.description ?? '',
             parameters: ft.parameters,
             strict: ft.strict,
           },

@@ -1,5 +1,10 @@
 /**
- * LlamaStack Responses API SSE event type constants.
+ * Responses API SSE event type constants.
+ *
+ * These are standard event types defined by the OpenAI Responses API
+ * specification, used by both OpenAI and LlamaStack servers.
+ *
+ * @deprecated Use RESPONSES_EVENT instead. LS_EVENT is kept for backward compatibility.
  */
 export const LS_EVENT = {
   RESPONSE_CREATED: 'response.created',
@@ -39,8 +44,11 @@ export const LS_EVENT = {
   REASONING_SUMMARY_TEXT_DONE: 'response.reasoning_summary_text.done',
 } as const;
 
+/** Alias for backward compatibility. */
+export const RESPONSES_EVENT = LS_EVENT;
+
 /**
- * LlamaStack output item type constants.
+ * Responses API output item type constants.
  */
 export const LS_ITEM_TYPE = {
   FUNCTION_CALL: 'function_call',

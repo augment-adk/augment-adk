@@ -3,7 +3,6 @@ import type {
   ResponsesApiMessage,
   ResponsesApiFileSearchResult,
   ResponsesApiFunctionCall,
-  ResponsesApiFunctionCallOutput,
   ResponsesApiMcpCall,
   ResponsesApiReasoningItem,
 } from '../types/responsesApi';
@@ -45,11 +44,9 @@ export function processResponse(response: ResponsesApiResponse): RunResult {
 
   const outputMap = new Map<string, string>();
   for (const item of response.output || []) {
-    if (item.type === 'function_call_output') {
-      const fco = item as ResponsesApiFunctionCallOutput;
-      if (fco.call_id) {
-        outputMap.set(fco.call_id, fco.output as string);
-      }
+    const raw = item as unknown as { type: string; call_id?: string; output?: string };
+    if (raw.type === 'function_call_output' && raw.call_id) {
+      outputMap.set(raw.call_id, raw.output ?? '');
     }
   }
 

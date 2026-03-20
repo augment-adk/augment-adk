@@ -89,6 +89,10 @@ export function buildTurnRequest(
     request.truncation = config.truncation;
   }
 
+  if (config.metadata && Object.keys(config.metadata).length > 0) {
+    request.metadata = config.metadata;
+  }
+
   return request;
 }
 

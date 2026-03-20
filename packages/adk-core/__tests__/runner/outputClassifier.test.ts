@@ -173,7 +173,7 @@ describe('DefaultOutputClassifier', () => {
   it('prioritises mcp_approval_request over function calls', () => {
     const agent = makeResolvedAgent('test');
     const output: ResponsesApiOutputEvent[] = [
-      { type: 'mcp_approval_request', id: 'ap-1', server_label: 'srv', method: 'tools/call' } as any,
+      { type: 'mcp_approval_request', id: 'ap-1', server_label: 'srv', name: 'tools/call', arguments: '{}' } as any,
       makeFunctionCall('some_tool'),
     ];
 

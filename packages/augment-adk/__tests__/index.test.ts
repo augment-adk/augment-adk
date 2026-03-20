@@ -50,10 +50,11 @@ const V010_RUNTIME_EXPORTS = [
 /**
  * v0.2.0 additions: new runtime symbols added since v0.1.0.
  * Guards against accidental removal during restructures.
+ *
+ * Note: ChatCompletionsModel/Client/Error moved to optional package
+ * @augment-adk/adk-chat-completions and are no longer re-exported here.
  */
 const V020_RUNTIME_EXPORTS = [
-  // ChatCompletions provider
-  'ChatCompletionsModel', 'ChatCompletionsClient', 'ChatCompletionsError',
   // Hosted tool factories
   'webSearchTool', 'fileSearchTool', 'hostedMcpTool',
   // Zod compatibility

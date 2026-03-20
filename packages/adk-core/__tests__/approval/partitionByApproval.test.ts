@@ -102,4 +102,60 @@ describe('partitionByApproval', () => {
     );
     expect(approved).toHaveLength(1);
   });
+
+  it('approves tools listed in never array of granular config', () => {
+    const resolver = makeResolver();
+    const servers: MCPServerConfig[] = [
+      { id: 'srv-a', url: '', requireApproval: { never: ['tool_a'] } },
+    ];
+    const { approved, needsApproval } = partitionByApproval(
+      [{ callId: 'c1', name: 'srv-a__tool_a', arguments: '{}' }],
+      resolver,
+      servers,
+    );
+    expect(approved).toHaveLength(1);
+    expect(needsApproval).toHaveLength(0);
+  });
+
+  it('requires approval for tools listed in always array of granular config', () => {
+    const resolver = makeResolver();
+    const servers: MCPServerConfig[] = [
+      { id: 'srv-a', url: '', requireApproval: { always: ['tool_a'] } },
+    ];
+    const { approved, needsApproval } = partitionByApproval(
+      [{ callId: 'c1', name: 'srv-a__tool_a', arguments: '{}' }],
+      resolver,
+      servers,
+    );
+    expect(approved).toHaveLength(0);
+    expect(needsApproval).toHaveLength(1);
+  });
+
+  it('defaults to requiring approval for unlisted tools in granular config', () => {
+    const resolver = makeResolver();
+    const servers: MCPServerConfig[] = [
+      { id: 'srv-a', url: '', requireApproval: { never: ['other_tool'] } },
+    ];
+    const { approved, needsApproval } = partitionByApproval(
+      [{ callId: 'c1', name: 'srv-a__tool_a', arguments: '{}' }],
+      resolver,
+      servers,
+    );
+    expect(approved).toHaveLength(0);
+    expect(needsApproval).toHaveLength(1);
+  });
+
+  it('never takes precedence over always for same tool in granular config', () => {
+    const resolver = makeResolver();
+    const servers: MCPServerConfig[] = [
+      { id: 'srv-a', url: '', requireApproval: { always: ['tool_a'], never: ['tool_a'] } },
+    ];
+    const { approved, needsApproval } = partitionByApproval(
+      [{ callId: 'c1', name: 'srv-a__tool_a', arguments: '{}' }],
+      resolver,
+      servers,
+    );
+    expect(approved).toHaveLength(1);
+    expect(needsApproval).toHaveLength(0);
+  });
 });

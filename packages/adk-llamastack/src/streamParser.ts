@@ -18,10 +18,10 @@ export function parseStreamEvent(data: string): RawStreamEvent | undefined {
 
   try {
     const parsed = JSON.parse(data);
-    if (typeof parsed === 'object' && parsed !== null && typeof parsed.type === 'string') {
+    if (typeof parsed === 'object' && parsed !== null) {
       return parsed as RawStreamEvent;
     }
-    return parsed as RawStreamEvent;
+    return undefined;
   } catch {
     return undefined;
   }

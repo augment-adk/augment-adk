@@ -8,6 +8,34 @@ importers:
 
   .: {}
 
+  packages/adk-chat-completions:
+    dependencies:
+      '@augment-adk/adk-core':
+        specifier: workspace:*
+        version: link:../adk-core
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.37
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^7.0.0
+        version: 7.18.0(@typescript-eslint/parser@7.18.0(eslint@8.57.1)(typescript@5.4.5))(eslint@8.57.1)(typescript@5.4.5)
+      '@typescript-eslint/parser':
+        specifier: ^7.0.0
+        version: 7.18.0(eslint@8.57.1)(typescript@5.4.5)
+      eslint:
+        specifier: ^8.57.0
+        version: 8.57.1
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(postcss@8.5.8)(typescript@5.4.5)
+      typescript:
+        specifier: ~5.4.0
+        version: 5.4.5
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.37)
+
   packages/adk-core:
     dependencies:
       zod:
@@ -70,36 +98,14 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.37)
 
-  packages/adk-openai-compat:
+  packages/augment-adk:
     dependencies:
       '@augment-adk/adk-core':
         specifier: workspace:*
         version: link:../adk-core
-    devDependencies:
-      '@types/node':
-        specifier: ^20.0.0
-        version: 20.19.37
-      '@typescript-eslint/eslint-plugin':
-        specifier: ^7.0.0
-        version: 7.18.0(@typescript-eslint/parser@7.18.0(eslint@8.57.1)(typescript@5.4.5))(eslint@8.57.1)(typescript@5.4.5)
-      '@typescript-eslint/parser':
-        specifier: ^7.0.0
-        version: 7.18.0(eslint@8.57.1)(typescript@5.4.5)
-      eslint:
-        specifier: ^8.57.0
-        version: 8.57.1
-      tsup:
-        specifier: ^8.0.0
-        version: 8.5.1(postcss@8.5.8)(typescript@5.4.5)
-      typescript:
-        specifier: ~5.4.0
-        version: 5.4.5
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@20.19.37)
-
-  packages/augment-adk:
-    dependencies:
+      '@augment-adk/adk-llamastack':
+        specifier: workspace:*
+        version: link:../adk-llamastack
       zod:
         specifier: ^3.0.0
         version: 3.25.76
@@ -107,15 +113,6 @@ importers:
         specifier: ^3.0.0
         version: 3.25.1(zod@3.25.76)
     devDependencies:
-      '@augment-adk/adk-core':
-        specifier: workspace:*
-        version: link:../adk-core
-      '@augment-adk/adk-llamastack':
-        specifier: workspace:*
-        version: link:../adk-llamastack
-      '@augment-adk/adk-openai-compat':
-        specifier: workspace:*
-        version: link:../adk-openai-compat
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.37

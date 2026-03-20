@@ -29,10 +29,10 @@ export interface EffectiveConfig {
   systemPrompt: string;
   toolChoice?: ToolChoiceConfig;
   parallelToolCalls?: boolean;
-  textFormat?: {
-    type: 'json_schema';
-    json_schema: { name: string; schema: Record<string, unknown>; strict?: boolean };
-  };
+  textFormat?:
+    | { type: 'text' }
+    | { type: 'json_object' }
+    | { type: 'json_schema'; json_schema: { name: string; schema: Record<string, unknown>; strict?: boolean } };
   enableWebSearch: boolean;
   enableCodeInterpreter: boolean;
   fileSearchMaxResults?: number;
@@ -68,6 +68,7 @@ export interface EffectiveConfig {
   defaultAgent?: string;
   maxAgentTurns?: number;
   promptRef?: PromptRef;
+  metadata?: Record<string, string>;
 }
 
 /**

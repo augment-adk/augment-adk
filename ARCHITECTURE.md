@@ -10,7 +10,7 @@ What distinguishes this project is a narrow set of deliberate constraints:
 
 2. **Library, not framework.** The ADK exports plain functions (`run()`, `runStream()`) and TypeScript interfaces. It does not own the process, register global state, or impose an application structure. It is designed to be embedded inside host applications -- a Backstage plugin, an Express server, a CLI tool -- where the host controls the HTTP server, auth, configuration, and lifecycle.
 
-3. **LlamaStack Responses API as the primary target.** While the ADK also ships a `ChatCompletionsModel` for OpenAI-compatible backends, the type system, streaming normalization, MCP tool handling, and approval flows are designed around Meta's [LlamaStack](https://github.com/meta-llama/llama-stack) implementation of the Responses API.
+3. **LlamaStack Responses API as the primary target.** The type system, streaming normalization, MCP tool handling, and approval flows are designed around Meta's [LlamaStack](https://github.com/meta-llama/llama-stack) implementation of the Responses API. A `ChatCompletionsModel` adapter is available as an optional separate package (`@augment-adk/adk-chat-completions`) for local development with Ollama, vLLM, or other Chat Completions providers, but the Responses API is the canonical interface. See [LlamaStack API coverage](#llamastack-api-coverage) for details on which LlamaStack APIs the ADK uses.
 
 ## Codebase structure
 
@@ -42,13 +42,89 @@ packages/
       requestBuilder.ts      Request construction and parameter mapping
       streamParser.ts        SSE stream parsing
 
-  adk-openai-compat/         OpenAI-compatible Chat Completions provider
+  adk-chat-completions/      Chat Completions API adapter (optional, separate install)
     src/
       ChatCompletionsModel.ts    Model implementation for /v1/chat/completions
       ChatCompletionsClient.ts   HTTP client
 
-  augment-adk/               Umbrella package (re-exports all sub-packages)
+  augment-adk/               Umbrella package (re-exports adk-core + adk-llamastack)
 ```
+
+## LlamaStack API coverage
+
+LlamaStack exposes ~20 API groups (Responses, Conversations, Inference, Models, Shields, Safety, VectorIO, Files, Prompts, Connectors, Tools, Tool-Runtime, Eval, Benchmarks, Scoring, Datasets, DatasetIO, Batches, Admin). The ADK intentionally targets a narrow subset.
+
+### APIs the ADK calls directly
+
+| Endpoint | Usage |
+|----------|-------|
+| `POST /v1/responses` | Core model turn (non-streaming and streaming via SSE). This is the only inference call the ADK makes. |
+| `GET /v1/models` | Connectivity check via `testConnection()`. |
+
+### CreateResponseRequest field coverage
+
+The `requestBuilder.ts` in `adk-llamastack` maps the following `CreateResponseRequest` fields from the [LlamaStack OpenAPI spec](https://github.com/meta-llama/llama-stack):
+
+| Field | Mapped from | Notes |
+|-------|-------------|-------|
+| `input` | Run loop input items | String or `ResponsesApiInputItem[]` |
+| `model` | `EffectiveConfig.model` | |
+| `instructions` | Agent system prompt | Omitted when `prompt` is set |
+| `prompt` | `EffectiveConfig.promptRef` | Server-side prompt with `id`, `version`, `variables` |
+| `tools` | Merged tool set | Function, MCP, web search, file search, code interpreter |
+| `tool_choice` | `EffectiveConfig.toolChoice` | |
+| `parallel_tool_calls` | `EffectiveConfig.parallelToolCalls` | |
+| `stream` | Run option | `true` for `runStream()` |
+| `store` | Run option / ZDR mode | Defaults to `true` unless ZDR mode |
+| `temperature` | `EffectiveConfig.temperature` | |
+| `text.format` | `EffectiveConfig.textFormat` | JSON schema structured output |
+| `reasoning` | `EffectiveConfig.reasoning` | Effort and summary config |
+| `conversation` | Session `conversationId` | Mutually exclusive with `previous_response_id` |
+| `previous_response_id` | Run option | Fallback when no `conversationId` |
+| `guardrails` | `EffectiveConfig.guardrails` | Server-side shield identifiers |
+| `max_tool_calls` | `EffectiveConfig.maxToolCalls` | |
+| `max_output_tokens` | `EffectiveConfig.maxOutputTokens` | Gated by server capability detection |
+| `max_infer_iters` | `EffectiveConfig.maxInferIters` | |
+| `safety_identifier` | `EffectiveConfig.safetyIdentifier` | |
+| `truncation` | `EffectiveConfig.truncation` | Gated by server capability detection |
+| `include` | `BuildRequestOptions.include` | Optional response field selectors |
+| `metadata` | `EffectiveConfig.metadata` | Response-level key-value pairs |
+
+### Response type alignment
+
+The ADK's TypeScript types in `responsesApi.ts` are structural mirrors of the OpenAPI schema discriminated unions:
+
+| ADK type | OpenAPI schema |
+|----------|---------------|
+| `ResponsesApiMessage` | `OpenAIResponseMessage-Output` |
+| `ResponsesApiFunctionCall` | `OpenAIResponseOutputMessageFunctionToolCall` |
+| `ResponsesApiFunctionCallOutput` | `OpenAIResponseInputFunctionToolCallOutput` (input type, not in output union) |
+| `ResponsesApiWebSearchCall` | `OpenAIResponseOutputMessageWebSearchToolCall` |
+| `ResponsesApiMcpCall` | `OpenAIResponseOutputMessageMCPCall` |
+| `ResponsesApiMcpApprovalRequest` | `OpenAIResponseMCPApprovalRequest` |
+| `McpApprovalResponseItem` | `OpenAIResponseMCPApprovalResponse` |
+| `ResponsesApiMcpListTools` | `OpenAIResponseOutputMessageMCPListTools` |
+| `ResponsesApiFileSearchResult` | `OpenAIResponseOutputMessageFileSearchToolCall` |
+| `ResponsesApiMcpTool` | `OpenAIResponseInputToolMCP` |
+| `ResponsesApiFunctionTool` | `OpenAIResponseInputToolFunction` |
+| `ResponsesApiWebSearchTool` | `OpenAIResponseInputToolWebSearch` |
+| `ResponsesApiFileSearchTool` | `OpenAIResponseInputToolFileSearch` |
+| `ResponsesApiResponse` | `OpenAIResponseObject` |
+
+### APIs the ADK does not call
+
+The ADK passes configuration values that reference other LlamaStack APIs (e.g., `vectorStoreIds` for file search, `conversation` for conversation tracking, `guardrails` for shield identifiers, `connector_id` for MCP connectors) but does not call those APIs directly. Management of these resources (creating vector stores, registering shields, configuring connectors) is the responsibility of the deployment infrastructure or host application.
+
+| API group | Why not called |
+|-----------|---------------|
+| Conversations (`/v1/conversations`) | The `conversation` field in `CreateResponseRequest` associates turns with a conversation. The server manages the conversation lifecycle. |
+| Safety/Shields (`/v1/safety`, `/v1/shields`) | Shield identifiers are passed via the `guardrails` request field. The server runs shields inline during response generation. |
+| VectorIO/Vector Stores (`/v1/vector-io`, `/v1/vector_stores`) | Vector store IDs are passed via file search tool config. The server executes file search. |
+| Files (`/v1/files`) | File IDs can be referenced in input content. File management is external. |
+| Connectors (`/v1alpha/connectors`) | `connector_id` on MCP tools routes calls through server-managed connectors. Connector registration is external. |
+| Prompts (`/v1/prompts`) | `promptRef.id` references a server-managed prompt. Prompt CRUD is external. |
+| Inference (`/v1/chat/completions`, `/v1/completions`, `/v1/embeddings`) | These are separate inference endpoints. The ADK uses the Responses API, which wraps inference with tool calling, guardrails, and conversation management. The optional `@augment-adk/adk-chat-completions` package provides a `ChatCompletionsModel` targeting `/v1/chat/completions` for non-LlamaStack providers. |
+| Eval, Scoring, Benchmarks, Datasets, Batches, Tool-Runtime | Out of scope for an orchestration library. These are platform-level concerns. |
 
 ## Run loop
 
@@ -110,7 +186,7 @@ interface Model {
 }
 ```
 
-Built-in implementations: `LlamaStackModel`, `ChatCompletionsModel`.
+Built-in implementation: `LlamaStackModel`. An optional `ChatCompletionsModel` is available via `@augment-adk/adk-chat-completions`.
 
 To add a new provider, implement these three methods and translate the provider's native response format into `ResponsesApiResponse` at the boundary. The [Backstage plugin example](./examples/backstage-plugin/src/ModelAdapter.ts) demonstrates how a host application wraps its own HTTP client behind this interface.
 
@@ -206,7 +282,7 @@ These are deliberate constraints, not accidental gaps.
 
 ### The type system is coupled to the Responses API shape
 
-All internal components -- the run loop, output classifier, response processor, stream accumulator, session interface -- operate on `ResponsesApiInputItem`, `ResponsesApiResponse`, and `ResponsesApiTool` types. These are structural mirrors of the OpenAI/LlamaStack Responses API JSON format.
+All internal components -- the run loop, output classifier, response processor, stream accumulator, session interface -- operate on `ResponsesApiInputItem`, `ResponsesApiResponse`, and `ResponsesApiTool` types. These are structural mirrors of the LlamaStack OpenAPI schema types (`OpenAIResponseObject`, `OpenAIResponseMessage`, `OpenAIResponseOutputMessageFunctionToolCall`, etc.) as documented in the [response type alignment table](#response-type-alignment) above.
 
 This means that adding a new model provider requires translating the provider's native format to/from these types at the `Model` boundary. For providers that already implement the Responses API (LlamaStack, OpenAI), this is trivial. For providers with significantly different formats (Anthropic Messages API, Google GenerateContent), the adapter needs to map fields. This is feasible -- the Responses API types cover standard constructs (messages, function calls, tool outputs) -- but it is additional work that wouldn't exist with a fully generic internal type system.
 
@@ -214,7 +290,7 @@ The trade-off is simplicity: a single concrete type system is easier to reason a
 
 ### EffectiveConfig is broad
 
-The `EffectiveConfig` interface has ~40 fields covering model parameters, RAG settings, vector store config, TLS options, and more. Many fields are irrelevant for non-LlamaStack providers. This reflects the config's origin as a Backstage plugin config object that was brought into the core.
+The `EffectiveConfig` interface has ~40 fields covering model parameters, RAG settings, vector store config, TLS options, and more. Some fields map directly to `CreateResponseRequest` parameters (see [field coverage table](#createresponserequest-field-coverage)). Others -- `vectorStoreIds`, `embeddingModel`, `chunkingStrategy`, `safetyPatterns` -- exist because they configure tool definitions that are included in the `tools` array of the request, or because they govern client-side behavior (TLS, logging). Many fields are irrelevant for non-LlamaStack providers.
 
 This does not cause runtime issues (unused fields are ignored), but it is a leaky abstraction. A cleaner design would split it into a small required core (`model`, `baseUrl`, `temperature`, `maxOutputTokens`) and optional extension interfaces. This is a known improvement area.
 

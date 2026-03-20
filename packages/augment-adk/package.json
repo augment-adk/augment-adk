@@ -1,7 +1,7 @@
 {
   "name": "@augment-adk/augment-adk",
-  "version": "0.1.8",
-  "description": "A standalone Agent Development Kit for LlamaStack Responses API multi-agent orchestration",
+  "version": "0.2.0",
+  "description": "Agent Development Kit for multi-agent orchestration over the Responses API via LlamaStack",
   "license": "Apache-2.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -62,10 +62,11 @@
       "optional": true
     }
   },
-  "devDependencies": {
+  "dependencies": {
     "@augment-adk/adk-core": "workspace:*",
-    "@augment-adk/adk-llamastack": "workspace:*",
-    "@augment-adk/adk-openai-compat": "workspace:*",
+    "@augment-adk/adk-llamastack": "workspace:*"
+  },
+  "devDependencies": {
     "@types/node": "^20.0.0",
     "tsup": "^8.0.0",
     "typescript": "~5.4.0",

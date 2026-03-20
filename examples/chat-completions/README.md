@@ -1,12 +1,20 @@
 # Chat Completions Example
 
-Single-agent question answering using any OpenAI-compatible backend via `ChatCompletionsModel`.
+Single-agent question answering using the optional `@augment-adk/adk-chat-completions` adapter.
 
 ## What it demonstrates
 
 - Creating a `ChatCompletionsModel` with connection config and optional API key
-- Works with OpenAI, Ollama, vLLM, LiteLLM, or any provider implementing `/v1/chat/completions`
+- Works with Ollama, vLLM, LiteLLM, OpenAI, or any provider implementing `/v1/chat/completions`
 - Same `run()` and `AgentConfig` API as the LlamaStack examples
+
+## Prerequisites
+
+Install the optional Chat Completions adapter alongside the main SDK:
+
+```bash
+npm install @augment-adk/augment-adk @augment-adk/adk-chat-completions
+```
 
 ## Supported backends
 

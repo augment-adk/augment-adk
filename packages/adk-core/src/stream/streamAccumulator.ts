@@ -6,7 +6,7 @@ import type {
 import { LS_EVENT } from './constants';
 
 /**
- * Accumulates raw LlamaStack SSE event strings into a
+ * Accumulates raw Responses API SSE event strings into a
  * `ResponsesApiResponse` that the OutputClassifier can process.
  *
  * During a streaming turn the model emits fine-grained events
