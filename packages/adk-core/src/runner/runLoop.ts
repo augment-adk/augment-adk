@@ -191,6 +191,7 @@ export async function runLoop(
     if (options.signal?.aborted) {
       return {
         content: 'Run was aborted.',
+        currentAgentKey: currentAgent.key,
         agentName: currentAgent.config.name,
         handoffPath: ctx.agentPath,
         toolCalls: ctx.accumulatedToolCalls,
@@ -281,7 +282,7 @@ export async function runLoop(
             result: 'error',
           });
           return mergeAccumulatedToolCalls(
-            { content: fallback, agentName: currentAgent.config.name, handoffPath: [...ctx.agentPath] },
+            { content: fallback, currentAgentKey: currentAgent.key, agentName: currentAgent.config.name, handoffPath: [...ctx.agentPath] },
             ctx.accumulatedToolCalls,
           );
         }
@@ -298,7 +299,7 @@ export async function runLoop(
       if (lastResponse) {
         const result = processResponse(lastResponse);
         return mergeAccumulatedToolCalls(
-          { ...result, agentName: currentAgent.config.name, handoffPath: [...ctx.agentPath] },
+          { ...result, currentAgentKey: currentAgent.key, agentName: currentAgent.config.name, handoffPath: [...ctx.agentPath] },
           ctx.accumulatedToolCalls,
         );
       }
@@ -364,6 +365,7 @@ export async function runLoop(
     lastResponse,
     logger,
     options.onMaxTurnsExceeded,
+    currentAgent.key,
   );
 }
 

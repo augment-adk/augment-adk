@@ -173,6 +173,7 @@ export async function runLoopStream(
     if (options.signal?.aborted) {
       return {
         content: 'Run was aborted.',
+        currentAgentKey: currentAgent.key,
         agentName: currentAgent.config.name,
         handoffPath: ctx.agentPath,
         toolCalls: ctx.accumulatedToolCalls,
@@ -264,7 +265,7 @@ export async function runLoopStream(
         if (fallback !== undefined) {
           push({ type: 'agent_end', agentKey: currentAgent.key, agentName: currentAgent.config.name, turn });
           return mergeAccumulatedToolCalls(
-            { content: fallback, agentName: currentAgent.config.name, handoffPath: [...ctx.agentPath] },
+            { content: fallback, currentAgentKey: currentAgent.key, agentName: currentAgent.config.name, handoffPath: [...ctx.agentPath] },
             ctx.accumulatedToolCalls,
           );
         }
@@ -280,7 +281,7 @@ export async function runLoopStream(
       if (lastResponse) {
         const result = processResponse(lastResponse);
         return mergeAccumulatedToolCalls(
-          { ...result, agentName: currentAgent.config.name, handoffPath: [...ctx.agentPath] },
+          { ...result, currentAgentKey: currentAgent.key, agentName: currentAgent.config.name, handoffPath: [...ctx.agentPath] },
           ctx.accumulatedToolCalls,
         );
       }
@@ -347,6 +348,7 @@ export async function runLoopStream(
     lastResponse,
     logger,
     options.onMaxTurnsExceeded,
+    currentAgent.key,
   );
 }
 

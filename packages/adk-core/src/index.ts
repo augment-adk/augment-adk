@@ -87,7 +87,7 @@ export { RunContext } from './runner/RunContext';
 export type { RunResult } from './runner/RunResult';
 export { StreamedRunResult } from './runner/StreamedRunResult';
 export type { RunState } from './runner/RunState';
-export { createInitialState, createInterruptedState, serializeRunState, deserializeRunState } from './runner/RunState';
+export { createInitialState, createInterruptedState, createContinuationState, serializeRunState, deserializeRunState } from './runner/RunState';
 export {
   DefaultOutputClassifier,
   type OutputClassifierInterface,

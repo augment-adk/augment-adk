@@ -154,6 +154,7 @@ export async function processTurnClassification(
           }
         }
         const result = processResponse(response);
+        result.currentAgentKey = currentAgent.key;
         result.agentName = currentAgent.config.name;
         result.pendingApprovals = needsApproval.map(call => {
           const info = options.toolResolver.getServerInfo(call.name);
@@ -230,6 +231,7 @@ export async function processTurnClassification(
           result: mergeAccumulatedToolCalls(
             {
               content: behaviorDecision.finalOutput ?? results.map(r => r.output).join('\n'),
+              currentAgentKey: currentAgent.key,
               agentName: currentAgent.config.name,
               handoffPath: ctx.agentPath.length > 1 ? [...ctx.agentPath] : undefined,
             },
@@ -307,7 +309,7 @@ export async function processTurnClassification(
           return {
             action: 'return',
             result: mergeAccumulatedToolCalls(
-              { ...result, agentName: currentAgent.config.name, handoffPath: [...ctx.agentPath] },
+              { ...result, currentAgentKey: currentAgent.key, agentName: currentAgent.config.name, handoffPath: [...ctx.agentPath] },
               ctx.accumulatedToolCalls,
             ),
           };
@@ -350,6 +352,7 @@ export async function processTurnClassification(
 
           if (subResult.pendingApproval || subResult.pendingApprovals?.length) {
             const result = processResponse(response);
+            result.currentAgentKey = currentAgent.key;
             result.agentName = currentAgent.config.name;
             result.pendingApproval = subResult.pendingApproval ?? subResult.pendingApprovals?.[0];
             result.pendingApprovals = subResult.pendingApprovals;
@@ -405,6 +408,7 @@ export async function processTurnClassification(
           result: mergeAccumulatedToolCalls(
             {
               content: agentToolBehavior.finalOutput ?? (subText || 'No output from sub-agent.'),
+              currentAgentKey: currentAgent.key,
               agentName: currentAgent.config.name,
               handoffPath: ctx.agentPath.length > 1 ? [...ctx.agentPath] : undefined,
             },
@@ -427,6 +431,7 @@ export async function processTurnClassification(
 
     case 'mcp_approval_request': {
       const result = processResponse(response);
+      result.currentAgentKey = currentAgent.key;
       result.agentName = currentAgent.config.name;
       if (ctx.agentPath.length > 1) result.handoffPath = [...ctx.agentPath];
       result.pendingApproval = {
@@ -445,6 +450,7 @@ export async function processTurnClassification(
     case 'final_output': {
       emitter.agentEnd(currentAgent.key, currentAgent.config.name, turn, 'final_output');
       const result = processResponse(response);
+      result.currentAgentKey = currentAgent.key;
       result.agentName = currentAgent.config.name;
       if (ctx.agentPath.length > 1) result.handoffPath = [...ctx.agentPath];
 
@@ -496,6 +502,7 @@ export function handleMaxTurnsExceeded(
     agentPath: string[];
     lastResponse?: ResponsesApiResponse;
   }) => RunResult | undefined,
+  currentAgentKey?: string,
 ): RunResult {
   logger.warn(`Max turns (${maxTurns}) exceeded. Path: ${ctx.agentPath.join(' -> ')}`);
 
@@ -505,12 +512,16 @@ export function handleMaxTurnsExceeded(
       lastResponse,
     });
     if (handlerResult) {
+      if (currentAgentKey && !handlerResult.currentAgentKey) {
+        handlerResult.currentAgentKey = currentAgentKey;
+      }
       return mergeAccumulatedToolCalls(handlerResult, ctx.accumulatedToolCalls);
     }
   }
 
   if (lastResponse) {
     const result = processResponse(lastResponse);
+    result.currentAgentKey = currentAgentKey;
     result.agentName = currentAgentName;
     if (ctx.agentPath.length > 1) result.handoffPath = [...ctx.agentPath];
     result.maxTurnsExceeded = true;

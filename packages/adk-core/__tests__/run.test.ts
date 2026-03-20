@@ -40,6 +40,7 @@ describe('run', () => {
     const result = await run('hello', makeOptions());
     expect(result.content).toBe('hello');
     expect(result.agentName).toBe('Router');
+    expect(result.currentAgentKey).toBe('router');
   });
 
   it('uses provided model', async () => {

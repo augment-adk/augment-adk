@@ -59,10 +59,22 @@ const V020_RUNTIME_EXPORTS = [
   'webSearchTool', 'fileSearchTool', 'hostedMcpTool',
   // Zod compatibility
   'isZodAvailable', 'zodSchemaToJsonSchema', 'validateWithZod',
-  // RunState serialization
-  'serializeRunState', 'deserializeRunState',
+  // RunState serialization and continuation
+  'serializeRunState', 'deserializeRunState', 'createContinuationState',
   // LlamaStack utilities
   'isParamSupported', 'buildTurnRequest', 'parseStreamEvent', 'splitSseBuffer',
+  // Handoff helpers
+  'wrapHandoffOutput', 'handoffFilters', 'promptWithHandoffInstructions',
+  // Tool search providers
+  'StaticToolSearchProvider', 'RemoteToolSearchProvider',
+  // Session additions
+  'CompactionSession', 'ServerConversationTracker',
+  // Stream additions
+  'RESPONSES_EVENT', 'normalizeResponsesApiEvent',
+  // Retry policy combinators
+  'retryNever', 'onNetworkError', 'onHttpStatus', 'onRateLimit', 'onServerError',
+  'retryMaxAttempts', 'retryAny', 'retryAll',
+  'defaultRetryPolicy', 'withRetry', 'backoffDelay',
 ] as const;
 
 describe('public API', () => {

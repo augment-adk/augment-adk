@@ -30,8 +30,8 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - name: Install pnpm
-        run: npm install -g pnpm
+      - name: Enable corepack
+        run: corepack enable
 
       - name: Install dependencies
         run: pnpm install
@@ -44,6 +44,9 @@ jobs:
 
       - name: Test all packages
         run: pnpm -r test
+
+      - name: Lint
+        run: pnpm -r lint
 
       - name: Bump version, publish, and tag
         working-directory: packages/augment-adk

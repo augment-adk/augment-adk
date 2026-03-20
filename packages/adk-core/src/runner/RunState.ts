@@ -1,4 +1,5 @@
 import type { ResponsesApiInputItem } from '../types/responsesApi';
+import type { RunResult } from './RunResult';
 
 /**
  * Serializable run state that enables resumption after HITL interruption.
@@ -68,6 +69,37 @@ export function createInitialState(
 /**
  * Create an interrupted RunState with pending approvals.
  */
+/**
+ * Build a RunState from a completed RunResult so the next `run()` starts
+ * from the same agent that produced this result. This enables multi-turn
+ * agent continuity across separate `run()` calls.
+ *
+ * @example
+ * ```typescript
+ * let activeState: RunState | undefined;
+ * // Each user turn:
+ * const result = await run(userMessage, {
+ *   ...opts,
+ *   resumeState: activeState,
+ * });
+ * activeState = createContinuationState(result);
+ * ```
+ */
+export function createContinuationState(
+  result: RunResult,
+  conversationId?: string,
+): RunState {
+  return {
+    currentAgentKey: result.currentAgentKey ?? '',
+    turn: 0,
+    previousResponseId: result.responseId,
+    conversationId,
+    agentPath: result.handoffPath ?? (result.currentAgentKey ? [result.currentAgentKey] : []),
+    pendingToolCalls: [],
+    isInterrupted: false,
+  };
+}
+
 export function createInterruptedState(
   agentKey: string,
   turn: number,

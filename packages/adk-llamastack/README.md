@@ -20,13 +20,19 @@ import { LlamaStackModel } from '@augment-adk/adk-llamastack';
 import { run } from '@augment-adk/adk-core';
 
 const model = new LlamaStackModel({
-  baseUrl: process.env.LLAMA_STACK_URL || 'http://localhost:8321',
-  model: 'meta-llama/Llama-3.1-8B-Instruct',
+  clientConfig: {
+    baseUrl: process.env.LLAMA_STACK_URL || 'http://localhost:8321',
+  },
 });
 
 const result = await run('What is the capital of France?', {
   model,
   agents: { assistant: { name: 'Assistant', instructions: 'You are a helpful assistant.' } },
+  defaultAgent: 'assistant',
+  config: {
+    model: 'meta-llama/Llama-3.1-8B-Instruct',
+    systemPrompt: '',
+  },
 });
 ```
 

@@ -32,13 +32,19 @@ import { ChatCompletionsModel } from '@augment-adk/adk-chat-completions';
 import { run } from '@augment-adk/adk-core';
 
 const model = new ChatCompletionsModel({
-  baseUrl: 'http://localhost:11434',  // Ollama
-  model: 'llama3.1',
+  clientConfig: {
+    baseUrl: 'http://localhost:11434',  // Ollama
+  },
 });
 
 const result = await run('Explain quantum computing.', {
   model,
   agents: { assistant: { name: 'Assistant', instructions: 'You are a helpful assistant.' } },
+  defaultAgent: 'assistant',
+  config: {
+    model: 'llama3.1',
+    systemPrompt: '',
+  },
 });
 ```
 

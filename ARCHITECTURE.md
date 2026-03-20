@@ -163,7 +163,7 @@ runLoop(input, agents, model, ...)   Main orchestration loop
   +---> [Turn N+1] ...
   |
   v
-RunResult { content, agentName, handoffPath, toolCalls, usage, pendingApprovals }
+RunResult { content, currentAgentKey, agentName, handoffPath, toolCalls, usage, pendingApprovals }
 ```
 
 **Streaming** (`runStream()`) follows the same control flow but has its own run loop implementation (`runLoopStream`) that yields `RunStreamEvent` objects as an async iterable during execution. It is not a wrapper around the non-streaming path. The `StreamAccumulator` incrementally builds the final `RunResult` from granular SSE events.
@@ -171,6 +171,39 @@ RunResult { content, agentName, handoffPath, toolCalls, usage, pendingApprovals 
 **Agent graph validation** happens before the first model call. `resolveAgentGraph()` detects cycles, validates that all handoff targets exist, and produces a frozen snapshot of the agent graph. Malformed graphs fail fast at startup, not mid-conversation.
 
 **Retry** is handled via composable retry policies (`onNetworkError`, `onRateLimit`, `onServerError`, `maxAttempts`) with exponential backoff and `AbortSignal` support. Policies are applied at the model call boundary, not at the HTTP level.
+
+### Multi-turn agent continuity
+
+Each `run()` / `runStream()` call starts from `defaultAgent` unless overridden. Handoffs are **intra-run** -- they switch agents within a single `run()` invocation. When the run completes and the user sends a follow-up message, the next `run()` would restart from the router unless you explicitly tell it to continue from the specialist.
+
+`RunResult.currentAgentKey` provides the graph key of the agent that produced the result. Use it with `createContinuationState()` (or by setting `defaultAgent` directly) to maintain agent continuity across turns:
+
+```typescript
+import { run, createContinuationState } from '@augment-adk/augment-adk';
+import type { RunState } from '@augment-adk/adk-core';
+
+let resumeState: RunState | undefined;
+
+// Each user turn:
+const result = await run(userMessage, {
+  ...options,
+  resumeState,
+});
+
+// Preserve agent continuity for the next turn
+resumeState = createContinuationState(result, conversationId);
+```
+
+Alternatively, track the agent key and pass it as `defaultAgent`:
+
+```typescript
+let activeAgent = 'router';
+
+const result = await run(userMessage, { ...options, defaultAgent: activeAgent });
+activeAgent = result.currentAgentKey ?? activeAgent;
+```
+
+This pattern follows the same approach as the OpenAI Agents SDK, where `result.lastAgent` is used to start the next turn from the correct agent.
 
 ## Extension points
 
