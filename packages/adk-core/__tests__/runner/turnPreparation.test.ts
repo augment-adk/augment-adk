@@ -93,6 +93,30 @@ describe('buildAgentEffectiveConfig', () => {
       expect.objectContaining({ strict: false }),
     );
   });
+
+  it('overrides vectorStoreIds from agent', () => {
+    const result = buildAgentEffectiveConfig(
+      makeBaseConfig({ vectorStoreIds: ['global-store'] }),
+      makeAgentConfig({ vectorStoreIds: ['agent-store'] }),
+    );
+    expect(result.vectorStoreIds).toEqual(['agent-store']);
+  });
+
+  it('falls back to base vectorStoreIds when agent has empty array', () => {
+    const result = buildAgentEffectiveConfig(
+      makeBaseConfig({ vectorStoreIds: ['global-store'] }),
+      makeAgentConfig({ vectorStoreIds: [] }),
+    );
+    expect(result.vectorStoreIds).toEqual(['global-store']);
+  });
+
+  it('falls back to base vectorStoreIds when agent has none', () => {
+    const result = buildAgentEffectiveConfig(
+      makeBaseConfig({ vectorStoreIds: ['global-store'] }),
+      makeAgentConfig(),
+    );
+    expect(result.vectorStoreIds).toEqual(['global-store']);
+  });
 });
 
 describe('buildToolAvailabilityContext', () => {

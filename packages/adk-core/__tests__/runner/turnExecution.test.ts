@@ -190,4 +190,38 @@ describe('buildAgentTools', () => {
     await buildAgentTools(agent, deps, ctx);
     expect(mcpToolManager.ensureDiscovered).not.toHaveBeenCalled();
   });
+
+  it('uses per-agent vectorStoreIds when set', async () => {
+    const agent = makeAgent('rag', { enableRAG: true, vectorStoreIds: ['agent-vs'] });
+    const deps = makeDeps({
+      config: { systemPrompt: '', model: 'test', vectorStoreIds: ['global-vs'] } as EffectiveConfig,
+    });
+    const ctx = new RunContext({ userQuery: 'hi' });
+    const tools = await buildAgentTools(agent, deps, ctx);
+    const fsSearch = tools.find(t => t.type === 'file_search') as any;
+    expect(fsSearch).toBeDefined();
+    expect(fsSearch.vector_store_ids).toEqual(['agent-vs']);
+  });
+
+  it('does not add file_search when enableRAG is false despite vectorStoreIds', async () => {
+    const agent = makeAgent('norag', { vectorStoreIds: ['store-1'] });
+    const deps = makeDeps({
+      config: { systemPrompt: '', model: 'test', vectorStoreIds: ['global-vs'] } as EffectiveConfig,
+    });
+    const ctx = new RunContext({ userQuery: 'hi' });
+    const tools = await buildAgentTools(agent, deps, ctx);
+    expect(tools.some(t => t.type === 'file_search')).toBe(false);
+  });
+
+  it('falls back to global vectorStoreIds when agent has no override', async () => {
+    const agent = makeAgent('rag', { enableRAG: true });
+    const deps = makeDeps({
+      config: { systemPrompt: '', model: 'test', vectorStoreIds: ['global-vs'] } as EffectiveConfig,
+    });
+    const ctx = new RunContext({ userQuery: 'hi' });
+    const tools = await buildAgentTools(agent, deps, ctx);
+    const fsSearch = tools.find(t => t.type === 'file_search') as any;
+    expect(fsSearch).toBeDefined();
+    expect(fsSearch.vector_store_ids).toEqual(['global-vs']);
+  });
 });

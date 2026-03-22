@@ -40,6 +40,7 @@ export function buildAgentEffectiveConfig(
     temperature: agent.temperature ?? base.temperature,
     promptRef: agent.promptRef ?? base.promptRef,
     truncation: agent.truncation ?? base.truncation,
+    vectorStoreIds: agent.vectorStoreIds?.length ? agent.vectorStoreIds : base.vectorStoreIds,
   };
 
   if (agent.outputSchema) {

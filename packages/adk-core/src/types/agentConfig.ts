@@ -15,6 +15,7 @@ export interface AgentConfig {
   handoffs?: string[];
   asTools?: string[];
   enableRAG?: boolean;
+  vectorStoreIds?: string[];
   enableWebSearch?: boolean;
   enableCodeInterpreter?: boolean;
   functions?: FunctionDefinition[];
