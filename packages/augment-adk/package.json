@@ -1,6 +1,6 @@
 {
   "name": "@augment-adk/augment-adk",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Agent Development Kit for multi-agent orchestration over the Responses API via LlamaStack",
   "license": "Apache-2.0",
   "main": "dist/index.js",
