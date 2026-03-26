@@ -92,18 +92,20 @@ describe('RunContext approval helpers', () => {
     });
   });
 
-  it('builds function_call_output items from approved decisions only', () => {
+  it('builds function_call_output items from all decisions including rejections', () => {
     const ctx = new RunContext({ userQuery: 'test' });
     ctx.approveTool('call_1', 'OK');
     ctx.rejectTool('call_2');
     ctx.approveTool('call_3');
 
     const outputs = ctx.buildApprovalOutputItems();
-    expect(outputs).toHaveLength(2);
+    expect(outputs).toHaveLength(3);
     expect(outputs[0].call_id).toBe('call_1');
     expect(outputs[0].output).toBe('OK');
-    expect(outputs[1].call_id).toBe('call_3');
-    expect(outputs[1].output).toBe('Approved by human.');
+    expect(outputs[1].call_id).toBe('call_2');
+    expect(outputs[1].output).toBe('Tool call rejected by human.');
+    expect(outputs[2].call_id).toBe('call_3');
+    expect(outputs[2].output).toBe('Approved by human.');
   });
 
   it('builds MCP approval responses from all decisions', () => {

@@ -4,6 +4,7 @@ import {
   deserializeRunState,
   createInitialState,
   createInterruptedState,
+  createInterruptedStateFromResult,
   type RunState,
 } from '../../src/runner/RunState';
 
@@ -77,5 +78,109 @@ describe('createInterruptedState', () => {
   it('defaults agentPath to empty array', () => {
     const state = createInterruptedState('eng', 0, []);
     expect(state.agentPath).toEqual([]);
+  });
+});
+
+describe('createInterruptedStateFromResult', () => {
+  it('builds interrupted state from client-side pendingApprovals', () => {
+    const state = createInterruptedStateFromResult({
+      content: '',
+      currentAgentKey: 'admin',
+      responseId: 'resp-10',
+      handoffPath: ['router', 'admin'],
+      pendingApprovals: [
+        { approvalRequestId: 'call_1', toolName: 'delete_ns', serverLabel: 'k8s-mcp', arguments: '{"ns":"prod"}' },
+        { approvalRequestId: 'call_2', toolName: 'restart_pod', serverLabel: 'k8s-mcp', arguments: '{}' },
+      ],
+      pendingApproval: { approvalRequestId: 'call_1', toolName: 'delete_ns', serverLabel: 'k8s-mcp', arguments: '{"ns":"prod"}' },
+    }, 'conv-1');
+
+    expect(state.isInterrupted).toBe(true);
+    expect(state.currentAgentKey).toBe('admin');
+    expect(state.previousResponseId).toBe('resp-10');
+    expect(state.conversationId).toBe('conv-1');
+    expect(state.agentPath).toEqual(['router', 'admin']);
+    expect(state.pendingToolCalls).toHaveLength(2);
+    expect(state.pendingToolCalls[0].callId).toBe('call_1');
+    expect(state.pendingToolCalls[0].name).toBe('delete_ns');
+    expect(state.pendingToolCalls[0].serverId).toBe('k8s-mcp');
+    expect(state.pendingToolCalls[1].callId).toBe('call_2');
+    expect(state.pendingMcpApprovals).toBeUndefined();
+  });
+
+  it('builds interrupted state from server-side MCP pendingApproval', () => {
+    const state = createInterruptedStateFromResult({
+      content: '',
+      currentAgentKey: 'eng',
+      responseId: 'resp-20',
+      pendingApproval: { approvalRequestId: 'apr_1', toolName: 'delete_pod', serverLabel: 'ocp-mcp', arguments: '{"pod":"web"}' },
+    });
+
+    expect(state.isInterrupted).toBe(true);
+    expect(state.currentAgentKey).toBe('eng');
+    expect(state.previousResponseId).toBe('resp-20');
+    expect(state.pendingToolCalls).toHaveLength(0);
+    expect(state.pendingMcpApprovals).toHaveLength(1);
+    expect(state.pendingMcpApprovals![0].approvalRequestId).toBe('apr_1');
+    expect(state.pendingMcpApprovals![0].serverLabel).toBe('ocp-mcp');
+    expect(state.pendingMcpApprovals![0].name).toBe('delete_pod');
+  });
+
+  it('still marks isInterrupted when no approvals pending (caller should check for pending work)', () => {
+    const state = createInterruptedStateFromResult({
+      content: 'all done',
+      currentAgentKey: 'agent',
+      responseId: 'resp-30',
+    });
+
+    expect(state.isInterrupted).toBe(true);
+    expect(state.pendingToolCalls).toHaveLength(0);
+    expect(state.pendingMcpApprovals).toBeUndefined();
+  });
+
+  it('maps autoApprovedCalls into autoApprovedToolCalls for client-side approvals', () => {
+    const state = createInterruptedStateFromResult({
+      content: '',
+      currentAgentKey: 'admin',
+      responseId: 'resp-auto',
+      pendingApprovals: [
+        { approvalRequestId: 'c-danger', toolName: 'dangerous_tool', serverLabel: 'function', arguments: '{"x":1}' },
+      ],
+      pendingApproval: { approvalRequestId: 'c-danger', toolName: 'dangerous_tool', serverLabel: 'function', arguments: '{"x":1}' },
+      autoApprovedCalls: [
+        { callId: 'c-safe', name: 'safe_tool', arguments: '{}' },
+      ],
+    });
+
+    expect(state.isInterrupted).toBe(true);
+    expect(state.pendingToolCalls).toHaveLength(1);
+    expect(state.pendingToolCalls[0].callId).toBe('c-danger');
+    expect(state.autoApprovedToolCalls).toHaveLength(1);
+    expect(state.autoApprovedToolCalls![0].callId).toBe('c-safe');
+    expect(state.autoApprovedToolCalls![0].name).toBe('safe_tool');
+    expect(state.autoApprovedToolCalls![0].arguments).toBe('{}');
+  });
+
+  it('does not set autoApprovedToolCalls when autoApprovedCalls is empty or absent', () => {
+    const stateNoAuto = createInterruptedStateFromResult({
+      content: '',
+      currentAgentKey: 'admin',
+      responseId: 'resp-no-auto',
+      pendingApprovals: [
+        { approvalRequestId: 'c1', toolName: 'tool_a', serverLabel: 'function', arguments: '{}' },
+      ],
+    });
+    expect(stateNoAuto.autoApprovedToolCalls).toBeUndefined();
+
+    const stateEmptyAuto = createInterruptedStateFromResult({
+      content: '',
+      currentAgentKey: 'admin',
+      responseId: 'resp-empty-auto',
+      pendingApprovals: [
+        { approvalRequestId: 'c1', toolName: 'tool_a', serverLabel: 'function', arguments: '{}' },
+      ],
+      autoApprovedCalls: [],
+    });
+    expect(stateEmptyAuto.autoApprovedToolCalls).toBeUndefined();
   });
 });

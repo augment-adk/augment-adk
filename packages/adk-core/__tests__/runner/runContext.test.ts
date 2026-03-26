@@ -48,12 +48,24 @@ describe('RunContext', () => {
       expect(items[0].output).toBe('looks safe');
     });
 
-    it('rejects tool calls', () => {
+    it('rejects tool calls with rejection output', () => {
       const ctx = new RunContext({ userQuery: 'test' });
       ctx.rejectTool('call-1', 'too dangerous');
 
       const items = ctx.buildApprovalOutputItems();
-      expect(items).toHaveLength(0);
+      expect(items).toHaveLength(1);
+      expect(items[0].call_id).toBe('call-1');
+      expect(items[0].output).toBe('Tool call rejected by human. Reason: too dangerous');
+    });
+
+    it('rejects tool calls without reason', () => {
+      const ctx = new RunContext({ userQuery: 'test' });
+      ctx.rejectTool('call-1');
+
+      const items = ctx.buildApprovalOutputItems();
+      expect(items).toHaveLength(1);
+      expect(items[0].call_id).toBe('call-1');
+      expect(items[0].output).toBe('Tool call rejected by human.');
     });
 
     it('builds MCP approval responses', () => {

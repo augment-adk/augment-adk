@@ -19,7 +19,12 @@ const MAX_PENDING = 100;
 
 /**
  * In-memory store for pending tool approvals.
- * Provides TTL-based expiry and a cap on concurrent pending items.
+ * Provides TTL-based expiry (30 min) and a cap on concurrent pending items (100).
+ *
+ * **Limitation:** This store is process-local. Pending approvals are lost on
+ * process restart and are not shared across worker instances. For durable
+ * HITL, use `createInterruptedStateFromResult()` to build a serializable
+ * `RunState` and persist it externally.
  */
 export class ApprovalStore {
   private readonly pending = new Map<string, PendingApproval>();

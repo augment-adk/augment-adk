@@ -83,11 +83,11 @@ export {
 } from './runner/retryPolicy';
 
 // Runner
-export { RunContext } from './runner/RunContext';
-export type { RunResult } from './runner/RunResult';
+export { RunContext, type ToolApprovalDecision } from './runner/RunContext';
+export type { RunResult, SubAgentContext } from './runner/RunResult';
 export { StreamedRunResult } from './runner/StreamedRunResult';
 export type { RunState } from './runner/RunState';
-export { createInitialState, createInterruptedState, createContinuationState, serializeRunState, deserializeRunState } from './runner/RunState';
+export { createInitialState, createInterruptedState, createInterruptedStateFromResult, createContinuationState, serializeRunState, deserializeRunState } from './runner/RunState';
 export {
   DefaultOutputClassifier,
   type OutputClassifierInterface,
@@ -101,6 +101,13 @@ export {
 } from './runner/responseProcessor';
 export { runLoop, type RunnerOptions } from './runner/runLoop';
 export { runLoopStream, type StreamRunnerOptions } from './runner/runLoopStream';
+export {
+  buildResumeToolOutputs,
+  flattenSubAgentChain,
+  unwindSubAgentMcpResume,
+  type ResumeEmitter,
+  type SubAgentModelCall,
+} from './runner/resumeHelper';
 
 // Stream
 export type { NormalizedStreamEvent } from './stream/events';

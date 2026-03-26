@@ -167,6 +167,14 @@ export async function processTurnClassification(
         });
         result.pendingApproval = result.pendingApprovals[0];
 
+        if (approved.length > 0) {
+          result.autoApprovedCalls = approved.map(call => ({
+            callId: call.callId,
+            name: call.name,
+            arguments: call.arguments,
+          }));
+        }
+
         emitter.approvalRequested?.(result.pendingApproval);
         return {
           action: 'return',
@@ -356,6 +364,12 @@ export async function processTurnClassification(
             result.agentName = currentAgent.config.name;
             result.pendingApproval = subResult.pendingApproval ?? subResult.pendingApprovals?.[0];
             result.pendingApprovals = subResult.pendingApprovals;
+            result.subAgentContext = {
+              parentCallId: classification.callId,
+              subAgentKey: subAgent.key,
+              subAgentResponseId: subResult.responseId,
+              inner: subResult.subAgentContext,
+            };
             if (ctx.agentPath.length > 1) result.handoffPath = [...ctx.agentPath];
             if (result.pendingApproval) {
               emitter.approvalRequested?.(result.pendingApproval);

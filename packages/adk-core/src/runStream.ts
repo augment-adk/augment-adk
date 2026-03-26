@@ -78,6 +78,14 @@ export function runStream(
     try {
       let effectiveInput: string | ResponsesApiInputItem[] = userInput;
       if (session && !isServerManaged) {
+        if (options.resumeState?.previousResponseId) {
+          logger.warn(
+            'Client-side session history is being prepended while resumeState.previousResponseId is also set. ' +
+            'This may cause the model to see conversation history twice — once from the session items and once ' +
+            'via the server-side response chain. Consider using ServerManagedSession or omitting the session ' +
+            'when resuming with previousResponseId.',
+          );
+        }
         const history = await session.getItems();
         if (history.length > 0) {
           const userItem: ResponsesApiInputItem = {

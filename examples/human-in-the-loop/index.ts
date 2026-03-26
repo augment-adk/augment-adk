@@ -19,6 +19,7 @@ import {
   tool,
   LlamaStackModel,
   ApprovalStore,
+  createInterruptedStateFromResult,
   type AgentConfig,
   type EffectiveConfig,
   type RunStreamEvent,
@@ -123,41 +124,79 @@ async function main() {
   console.log(`\nResult: ${streamed.result.content}\n`);
 
   // =========================================================================
-  // Part 2: ApprovalStore pattern (non-streaming)
+  // Part 2: Full interrupt-approve-resume cycle (non-streaming)
   // =========================================================================
-  // Shows how the ApprovalStore works for backend-managed approvals.
-  // In the real Backstage plugin, BackendApprovalStore extends this pattern
-  // with response tracking and conversation context.
+  // Demonstrates the complete HITL flow:
+  //   1. run() encounters a tool needing approval → returns pendingApprovals
+  //   2. Build a resumeState from the result
+  //   3. re-run() with resumeState + approvalDecisions to continue
 
-  console.log('=== Part 2: ApprovalStore pattern ===\n');
+  console.log('=== Part 2: Full interrupt-approve-resume cycle ===\n');
 
   const approvalStore = new ApprovalStore();
-  console.log(`ApprovalStore initialized (pending: ${approvalStore.size})`);
 
-  // The approval store manages pending approvals with TTL-based expiry.
-  // When the ADK encounters a tool call that requires approval
-  // (via MCP requireApproval config), it stores the pending approval
-  // and returns it in the RunResult.
-  //
-  // The flow is:
-  // 1. run() -> result.pendingApprovals has items
-  // 2. Present to user for approval/rejection
-  // 3. Re-run with approvalDecisions to continue
+  // Mark delete_namespace as requiring approval via MCP server config.
+  // Function tools are registered under serverId "function".
+  const mcpServers: MCPServerConfig[] = [
+    {
+      id: 'function',
+      name: 'Function Tools',
+      type: 'streamable-http' as const,
+      url: '',
+      requireApproval: { always: ['delete_namespace'] },
+    },
+  ];
 
-  console.log('\nIn a real integration with MCP approval:');
-  console.log('  1. Configure MCP server with requireApproval: "always"');
-  console.log('  2. Pass approvalStore to run() options');
-  console.log('  3. Check result.pendingApprovals for items needing approval');
-  console.log('  4. Re-run with approvalDecisions: [{ callId, approved: true }]');
-  console.log('  5. The ADK resumes execution with the approved tool calls');
+  console.log('Step 1: Run with a request that triggers delete_namespace...');
+  const initialResult = await run('Delete the app-staging namespace.', {
+    model,
+    agents: { admin: agent },
+    defaultAgent: 'admin',
+    config: makeConfig(),
+    functionTools: [listNamespaces, deleteNamespace],
+    mcpServers,
+    approvalStore,
+  });
 
-  console.log('\nExample approval decision structure:');
-  console.log(JSON.stringify({
-    approvalDecisions: [
-      { callId: 'call_abc123', approved: true },
-      { callId: 'call_def456', approved: false, reason: 'Too risky' },
-    ],
-  }, null, 2));
+  if (initialResult.pendingApprovals?.length) {
+    console.log(`\nStep 2: Got ${initialResult.pendingApprovals.length} pending approval(s):`);
+    for (const pa of initialResult.pendingApprovals) {
+      console.log(`  - Tool: ${pa.toolName}, Args: ${pa.arguments}, ID: ${pa.approvalRequestId}`);
+    }
+
+    // Build the interrupted RunState from the result
+    const resumeState = createInterruptedStateFromResult(initialResult);
+    console.log(`\n  RunState built: isInterrupted=${resumeState.isInterrupted}, ` +
+      `pendingToolCalls=${resumeState.pendingToolCalls.length}`);
+
+    // Simulate user approving the first tool call
+    const decisions = initialResult.pendingApprovals.map(pa => ({
+      callId: pa.approvalRequestId,
+      approved: true,
+      reason: 'Approved by admin in HITL example',
+    }));
+    console.log(`\nStep 3: Resuming with ${decisions.length} approval decision(s)...`);
+
+    const resumedResult = await run('Delete the app-staging namespace.', {
+      model,
+      agents: { admin: agent },
+      defaultAgent: 'admin',
+      config: makeConfig(),
+      functionTools: [listNamespaces, deleteNamespace],
+      mcpServers,
+      approvalStore,
+      resumeState,
+      approvalDecisions: decisions,
+    });
+
+    console.log(`\nStep 4: Resumed result: ${resumedResult.content.slice(0, 200)}`);
+    if (resumedResult.toolCalls?.length) {
+      console.log(`  Tools executed: ${resumedResult.toolCalls.map(t => t.name).join(', ')}`);
+    }
+  } else {
+    console.log('No pending approvals (tool was not called or approval not required).');
+    console.log(`Result: ${initialResult.content.slice(0, 200)}`);
+  }
 
   // =========================================================================
   // Part 3: Demonstrating function tool execution with streaming

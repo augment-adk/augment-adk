@@ -23,7 +23,7 @@ const V010_RUNTIME_EXPORTS = [
   'ToolResolver', 'MCPToolManager', 'executeToolCalls',
   // Runner
   'RunContext', 'StreamedRunResult',
-  'createInitialState', 'createInterruptedState',
+  'createInitialState', 'createInterruptedState', 'createInterruptedStateFromResult',
   'DefaultOutputClassifier',
   'processResponse', 'extractTextFromResponse',
   'runLoop', 'runLoopStream',
@@ -75,6 +75,8 @@ const V020_RUNTIME_EXPORTS = [
   'retryNever', 'onNetworkError', 'onHttpStatus', 'onRateLimit', 'onServerError',
   'retryMaxAttempts', 'retryAny', 'retryAll',
   'defaultRetryPolicy', 'withRetry', 'backoffDelay',
+  // Resume helpers
+  'buildResumeToolOutputs', 'flattenSubAgentChain', 'unwindSubAgentMcpResume',
 ] as const;
 
 describe('public API', () => {

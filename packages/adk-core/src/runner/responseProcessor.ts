@@ -34,6 +34,12 @@ export interface ApprovalInfo {
 
 /**
  * Process a raw Responses API response into a RunResult.
+ *
+ * Note: `mcp_approval_request` items are NOT extracted here. They are
+ * handled by `DefaultOutputClassifier` (which prioritizes them as the
+ * highest-priority classification) and then by `processTurnClassification`
+ * in `turnProcessor.ts`, which overlays `pendingApproval` on the result.
+ * This separation ensures the classifier sees the raw response first.
  */
 export function processResponse(response: ResponsesApiResponse): RunResult {
   let textContent = '';

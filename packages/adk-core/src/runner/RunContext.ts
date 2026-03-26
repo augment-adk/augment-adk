@@ -67,15 +67,25 @@ export class RunContext {
   /**
    * Build function_call_output items from approval decisions
    * for sending back to the model.
+   *
+   * Every pending function_call must receive a corresponding
+   * function_call_output — including rejected calls — so the
+   * Responses API can match them and continue the conversation.
+   *
+   * @deprecated Prefer `buildResumeToolOutputs()` (importable from
+   * `@augment-adk/adk-core`) which actually executes approved tools and
+   * returns their real output. This method returns placeholder text
+   * (e.g. "Approved by human.") rather than tool results. Retained for
+   * backward compatibility with consumers who build custom resume flows.
    */
   buildApprovalOutputItems(): FunctionCallOutputItem[] {
-    return this.toolApprovalDecisions
-      .filter(d => d.approved)
-      .map(d => ({
-        type: 'function_call_output' as const,
-        call_id: d.callId,
-        output: d.reason ?? 'Approved by human.',
-      }));
+    return this.toolApprovalDecisions.map(d => ({
+      type: 'function_call_output' as const,
+      call_id: d.callId,
+      output: d.approved
+        ? (d.reason ?? 'Approved by human.')
+        : `Tool call rejected by human.${d.reason ? ` Reason: ${d.reason}` : ''}`,
+    }));
   }
 
   /**

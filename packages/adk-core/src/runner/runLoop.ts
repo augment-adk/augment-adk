@@ -30,6 +30,7 @@ import { processResponse } from './responseProcessor';
 import { AgentNotFoundError, toErrorMessage } from '../errors';
 import type { RetryPolicy } from './retryPolicy';
 import { withRetry } from './retryPolicy';
+import { resolveResumeInput } from './resumeHelper';
 import {
   processTurnClassification,
   handleMaxTurnsExceeded,
@@ -104,11 +105,25 @@ export async function runLoop(
   }
 
   if (options.approvalDecisions) {
-    for (const decision of options.approvalDecisions) {
-      if (decision.approved) {
-        ctx.approveTool(decision.callId, decision.reason);
-      } else {
-        ctx.rejectTool(decision.callId, decision.reason);
+    if (!resumeState?.isInterrupted) {
+      logger.warn(
+        'approvalDecisions provided without an interrupted resumeState — decisions will be ignored. ' +
+        'Use createInterruptedStateFromResult() to build a resumeState from a RunResult with pendingApprovals.',
+      );
+    } else {
+      const seen = new Set<string>();
+      for (const decision of options.approvalDecisions) {
+        if (seen.has(decision.callId)) {
+          logger.warn(`Duplicate approvalDecision for callId "${decision.callId}" — using last occurrence.`);
+          const idx = ctx.toolApprovalDecisions.findIndex(d => d.callId === decision.callId);
+          if (idx !== -1) ctx.toolApprovalDecisions.splice(idx, 1);
+        }
+        seen.add(decision.callId);
+        if (decision.approved) {
+          ctx.approveTool(decision.callId, decision.reason);
+        } else {
+          ctx.rejectTool(decision.callId, decision.reason);
+        }
       }
     }
   }
@@ -118,15 +133,6 @@ export async function runLoop(
     : getAgent(agents, defaultAgentKey);
 
   let input: string | ResponsesApiInputItem[] = userInput;
-
-  if (resumeState?.isInterrupted) {
-    if (resumeState.pendingMcpApprovals?.length) {
-      input = ctx.buildMcpApprovalResponses() as ResponsesApiInputItem[];
-    } else if (resumeState.pendingToolCalls.length > 0) {
-      input = ctx.buildApprovalOutputItems() as ResponsesApiInputItem[];
-    }
-  }
-  let lastResponse: ResponsesApiResponse | undefined;
 
   registerFunctionTools(options.functionTools, options.toolResolver);
 
@@ -186,6 +192,26 @@ export async function runLoop(
       });
     },
   };
+
+  if (resumeState?.isInterrupted) {
+    const resolved = await resolveResumeInput({
+      ctx, resumeState, agents, currentAgent, emitter, logger,
+      model: options.model,
+      config: options.config,
+      mcpServers: options.mcpServers,
+      toolResolver: options.toolResolver,
+      mcpToolManager: options.mcpToolManager,
+      toolScopeProvider: options.toolScopeProvider,
+      functionTools: options.functionTools,
+      capabilities: options.capabilities,
+      outputClassifier: options.outputClassifier,
+      toolErrorFormatter: options.toolErrorFormatter,
+      retryPolicy: options.retryPolicy,
+      toolSearchProvider: options.toolSearchProvider,
+    });
+    if (resolved) input = resolved;
+  }
+  let lastResponse: ResponsesApiResponse | undefined;
 
   for (let turn = 0; turn < maxTurns; turn++) {
     if (options.signal?.aborted) {

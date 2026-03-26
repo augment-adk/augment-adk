@@ -51,12 +51,22 @@ export interface RunOptions {
   /** Abort signal for cancelling an in-progress run. */
   signal?: AbortSignal;
 
-  /** Provide a RunState to resume from an interrupted run (e.g. after HITL approval). */
+  /**
+   * Provide a RunState to resume from an interrupted run (e.g. after HITL approval).
+   * Build with `createInterruptedStateFromResult(result)`.
+   *
+   * **Note:** If the first model call after resume fails and no `onModelError`
+   * callback is provided, the error is thrown and the resume state is lost.
+   * Consumers should retain their `resumeState` until the resumed run
+   * completes successfully, so it can be retried.
+   */
   resumeState?: RunState;
 
   /**
    * Approval decisions for resuming an interrupted run.
-   * Each entry maps a callId to approved (true) or rejected (false).
+   * Each `callId` must match an `ApprovalInfo.approvalRequestId` from the
+   * prior `RunResult.pendingApproval(s)`. Duplicate `callId`s are deduplicated
+   * (last wins) with a warning.
    */
   approvalDecisions?: Array<{ callId: string; approved: boolean; reason?: string }>;
 }
@@ -100,6 +110,14 @@ export async function run(
   try {
     let effectiveInput: string | ResponsesApiInputItem[] = userInput;
     if (session && !isServerManaged) {
+      if (options.resumeState?.previousResponseId) {
+        logger.warn(
+          'Client-side session history is being prepended while resumeState.previousResponseId is also set. ' +
+          'This may cause the model to see conversation history twice — once from the session items and once ' +
+          'via the server-side response chain. Consider using ServerManagedSession or omitting the session ' +
+          'when resuming with previousResponseId.',
+        );
+      }
       const history = await session.getItems();
       if (history.length > 0) {
         const userItem: ResponsesApiInputItem = {
